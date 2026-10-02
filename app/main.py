@@ -19,7 +19,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
 from app.config import configure_logging
-from app.errors import ERROR_STATUS, ApiError, UpstreamError
+from app.errors import ERROR_STATUS, ApiError, UpstreamChanged, UpstreamError
 from app.models import (
     EbookDetail,
     EbookSummary,
@@ -104,7 +104,18 @@ def create_app() -> FastAPI:
     @application.exception_handler(UpstreamError)
     def _handle_upstream_error(request: Request, exc: UpstreamError) -> JSONResponse:
         code, message, retryable = error_code_for(exc)
-        logger.warning("%s %s -> %s", request.method, request.url.path, code)
+        if isinstance(exc, UpstreamChanged):
+            # Name the missing element in the log, not just the code: this is
+            # the one error a maintainer acts on, and the selector is what
+            # points at the single parser function to fix.
+            logger.error(
+                "upstream structure changed on %s %s: %s is missing",
+                request.method,
+                request.url.path,
+                exc.element,
+            )
+        else:
+            logger.warning("%s %s -> %s: %s", request.method, request.url.path, code, message)
         return error_response(code, message, retryable)
 
     @application.exception_handler(StarletteHTTPException)

@@ -421,6 +421,38 @@ def test_upstream_conditions_map_onto_the_fixed_vocabulary(
     assert response.json()["error"]["code"] == code
 
 
+def test_mutated_fixture_returns_upstream_changed_and_logs_the_element(
+    make_api: AnyFactory, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A real page minus one required element: 502, and the log names it.
+
+    Uses a mutated fixture rather than invented markup, and asserts the log
+    line names the missing element so a maintainer can find the one parser
+    function responsible.
+    """
+    mutated = fixture_html("catalog_page_1").replace('class="ebooks-list list"', 'class="renamed"')
+    with caplog.at_level("ERROR", logger="app.main"), make_api([script(200, mutated)]) as client:
+        response = client.get("/v1/ebooks")
+    assert response.status_code == 502
+    assert response.json()["error"]["code"] == "UPSTREAM_CHANGED"
+    assert "ebooks-list" in response.json()["error"]["message"]
+    logged = " ".join(record.getMessage() for record in caplog.records)
+    assert "ebooks-list" in logged, f"the log did not name the missing element: {logged!r}"
+
+
+def test_absent_optional_field_is_returned_as_null(make_api: AnyFactory) -> None:
+    """An edition with no contributors and no series still comes back whole."""
+    with make_api([script(200, fixture_html("ebook_flatland"))]) as client:
+        response = client.get("/v1/ebooks/edwin-a-abbott/flatland")
+    assert response.status_code == 200
+    record = response.json()["data"]
+    assert record["contributors"] == []
+    assert record["collections"] == []
+    assert record["title"] == "Flatland"
+    assert record["word_count"] == 33546
+    assert record["source_url"].endswith("/ebooks/edwin-a-abbott/flatland")
+
+
 def test_open_breaker_reports_rate_limited(make_api: AnyFactory) -> None:
     from app.config import Settings
 

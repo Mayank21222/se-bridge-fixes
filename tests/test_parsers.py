@@ -18,6 +18,7 @@ OBERLAND_URL = "https://standardebooks.org/ebooks/dorothy-m-richardson/oberland"
 IMITATION_URL = (
     "https://standardebooks.org/ebooks/thomas-a-kempis/the-imitation-of-christ/william-benham"
 )
+FLATLAND_URL = "https://standardebooks.org/ebooks/edwin-a-abbott/flatland"
 
 
 # --------------------------------------------------------------------- listing
@@ -247,3 +248,50 @@ def test_drift_error_names_the_missing_selector() -> None:
     with pytest.raises(UpstreamChanged) as caught:
         parsers.parse_catalog_page("<html><body>nope</body></html>", source_url="x")
     assert "ebooks-list" in caught.value.element
+
+
+def test_a_real_fixture_with_its_listing_removed_is_drift() -> None:
+    """A mutated fixture, not invented markup.
+
+    Take a page the site actually served and delete the one required element
+    the parser depends on. This is the shape of the real failure: the page
+    still arrives, still looks like HTML, and no longer parses. Invented
+    markup like ``<html><body>nope</body></html>`` cannot catch a selector
+    that quietly stops matching real content.
+    """
+    mutated = fixture_html("catalog_page_1").replace('class="ebooks-list list"', 'class="renamed"')
+    assert "ebooks-list" not in mutated, "the fixture no longer contains the target class"
+    with pytest.raises(UpstreamChanged) as caught:
+        parsers.parse_catalog_page(mutated, source_url=PAGE_1_URL)
+    assert "ebooks-list" in caught.value.element
+
+
+def test_a_real_detail_fixture_missing_its_article_is_drift() -> None:
+    mutated = (
+        fixture_html("ebook_flatland")
+        .replace("<article", "<section")
+        .replace("</article>", "</section>")
+    )
+    with pytest.raises(UpstreamChanged) as caught:
+        parsers.parse_ebook_page(
+            mutated,
+            source_url=FLATLAND_URL,
+            base_url=FLATLAND_URL,
+        )
+    assert caught.value.element
+
+
+def test_optional_fields_the_site_omits_become_null() -> None:
+    """An absent optional field is null, never invented and never an error."""
+    record = parsers.parse_ebook_page(
+        fixture_html("ebook_flatland"),
+        source_url=FLATLAND_URL,
+        base_url=FLATLAND_URL,
+    )
+    # Flatland has no contributors and no series, and the site omits both.
+    assert record.contributors == []
+    assert record.collections == []
+    # Required fields around them are still filled in.
+    assert record.title == "Flatland"
+    assert record.word_count == 33546
+    assert record.source_url == FLATLAND_URL
