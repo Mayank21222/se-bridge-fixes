@@ -397,8 +397,10 @@ Everything is injectable, so the offline suite is fully deterministic:
 would, and `FakeTransport` replaying scripted responses while recording every
 URL that *would* have been requested.
 
-Full results, the required-scenario matrix, and the five defects these tests
-caught are in [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md).
+Full results, the required-scenario matrix, and the six defects these tests
+caught are in [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md). A step-by-step
+guide to running every level yourself is in
+[`docs/HOW_TO_TEST.md`](docs/HOW_TO_TEST.md).
 
 ---
 
@@ -433,6 +435,7 @@ There is **no** credential setting, because there is nothing to authenticate to.
 | [`docs/LIMITATIONS_AND_LONG_TERM_FIX.md`](docs/LIMITATIONS_AND_LONG_TERM_FIX.md) | The note: what this approach costs and the real fix |
 | [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) | 12 implementation-level limits and the proper fix for each |
 | [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) | Test evidence and the required-scenario matrix |
+| [`docs/HOW_TO_TEST.md`](docs/HOW_TO_TEST.md) | How to test this yourself, level by level |
 | [`docs/openapi.json`](docs/openapi.json) | Exported OpenAPI 3.1 document |
 
 ## Licence
