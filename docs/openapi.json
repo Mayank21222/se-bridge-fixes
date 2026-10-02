@@ -1,0 +1,1340 @@
+{
+  "components": {
+    "schemas": {
+      "AuthorRef": {
+        "description": "An ebook author, as named on the public catalogue page.",
+        "properties": {
+          "name": {
+            "description": "Display name of the author.",
+            "title": "Name",
+            "type": "string"
+          },
+          "same_as": {
+            "description": "Authority links the catalogue publishes, e.g. Library of Congress or Wikipedia.",
+            "items": {
+              "type": "string"
+            },
+            "title": "Same As",
+            "type": "array"
+          },
+          "slug": {
+            "description": "URL-safe author slug, used as the author filter value.",
+            "title": "Slug",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Canonical public page for this author.",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "AuthorRef",
+        "type": "object"
+      },
+      "CollectionRef": {
+        "description": "A curated set an ebook belongs to, e.g. 'The Oresteia'.",
+        "properties": {
+          "name": {
+            "description": "Display name of the collection.",
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "description": "URL-safe collection slug.",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "CollectionRef",
+        "type": "object"
+      },
+      "ContributorRef": {
+        "description": "A secondary credit such as translator, illustrator or editor.",
+        "properties": {
+          "name": {
+            "description": "Name of the contributor.",
+            "title": "Name",
+            "type": "string"
+          },
+          "role": {
+            "description": "Credit as printed, e.g. 'Translated'.",
+            "title": "Role",
+            "type": "string"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Link the catalogue publishes for them.",
+            "title": "Url"
+          }
+        },
+        "required": [
+          "role",
+          "name"
+        ],
+        "title": "ContributorRef",
+        "type": "object"
+      },
+      "EbookDetail": {
+        "description": "The full record for one ebook.",
+        "properties": {
+          "abstract": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "One-sentence summary, or null when the catalogue omits it.",
+            "title": "Abstract"
+          },
+          "authors": {
+            "description": "Authors, in publication order.",
+            "items": {
+              "$ref": "#/components/schemas/AuthorRef"
+            },
+            "title": "Authors",
+            "type": "array"
+          },
+          "collections": {
+            "description": "Sets it belongs to.",
+            "items": {
+              "$ref": "#/components/schemas/CollectionRef"
+            },
+            "title": "Collections",
+            "type": "array"
+          },
+          "contributors": {
+            "description": "Translators, illustrators and editors. May be empty.",
+            "items": {
+              "$ref": "#/components/schemas/ContributorRef"
+            },
+            "title": "Contributors",
+            "type": "array"
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cover image URL, or null.",
+            "title": "Cover Url"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Long-form description, or null when the catalogue omits it.",
+            "title": "Description"
+          },
+          "difficulty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Site's difficulty band, e.g. 'easy' or 'average difficulty'.",
+            "title": "Difficulty"
+          },
+          "formats": {
+            "description": "Downloadable renditions listed on the page.",
+            "items": {
+              "$ref": "#/components/schemas/FormatRef"
+            },
+            "title": "Formats",
+            "type": "array"
+          },
+          "id": {
+            "description": "Stable identifier, e.g. 'edwin-a-abbott/flatland'. Pass it to GET /v1/ebooks/{ebook_id}.",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "BCP 47 language tag, e.g. 'en-GB'.",
+            "title": "Language"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Licence URL the catalogue publishes for the file.",
+            "title": "License"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date this edition was first released (ISO 8601 date).",
+            "title": "Published At"
+          },
+          "read_online_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public page that renders the whole book in the browser.",
+            "title": "Read Online Url"
+          },
+          "reading_ease": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reading-ease score, or null if not listed.",
+            "title": "Reading Ease"
+          },
+          "reading_time_minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Estimated reading time in minutes, or null.",
+            "title": "Reading Time Minutes"
+          },
+          "source_repository_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public source repository for this edition.",
+            "title": "Source Repository Url"
+          },
+          "source_url": {
+            "description": "Public page this record was parsed from.",
+            "title": "Source Url",
+            "type": "string"
+          },
+          "sources": {
+            "description": "Transcription or scan sources credited by the site.",
+            "items": {
+              "$ref": "#/components/schemas/SourceRef"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "subjects": {
+            "description": "Subject facets. Empty in grid views, where the site omits them.",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRef"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "title": {
+            "description": "Title of the ebook.",
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Date this edition was last modified (ISO 8601 date).",
+            "title": "Updated At"
+          },
+          "word_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Word count, or null if not listed.",
+            "title": "Word Count"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "authors",
+          "source_url"
+        ],
+        "title": "EbookDetail",
+        "type": "object"
+      },
+      "EbookSummary": {
+        "description": "One ebook as it appears in a listing or search result.",
+        "properties": {
+          "authors": {
+            "description": "Authors, in publication order.",
+            "items": {
+              "$ref": "#/components/schemas/AuthorRef"
+            },
+            "title": "Authors",
+            "type": "array"
+          },
+          "contributors": {
+            "description": "Translators, illustrators and editors. May be empty.",
+            "items": {
+              "$ref": "#/components/schemas/ContributorRef"
+            },
+            "title": "Contributors",
+            "type": "array"
+          },
+          "cover_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cover image URL, or null.",
+            "title": "Cover Url"
+          },
+          "id": {
+            "description": "Stable identifier, e.g. 'edwin-a-abbott/flatland'. Pass it to GET /v1/ebooks/{ebook_id}.",
+            "title": "Id",
+            "type": "string"
+          },
+          "reading_ease": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Reading-ease score, or null if not listed.",
+            "title": "Reading Ease"
+          },
+          "source_url": {
+            "description": "Public page this record was parsed from.",
+            "title": "Source Url",
+            "type": "string"
+          },
+          "subjects": {
+            "description": "Subject facets. Empty in grid views, where the site omits them.",
+            "items": {
+              "$ref": "#/components/schemas/SubjectRef"
+            },
+            "title": "Subjects",
+            "type": "array"
+          },
+          "title": {
+            "description": "Title of the ebook.",
+            "title": "Title",
+            "type": "string"
+          },
+          "word_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Word count, or null if not listed.",
+            "title": "Word Count"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "authors",
+          "source_url"
+        ],
+        "title": "EbookSummary",
+        "type": "object"
+      },
+      "Envelope_EbookDetail_": {
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/EbookDetail",
+            "description": "The result."
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta",
+            "description": "Provenance and pagination metadata."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[EbookDetail]",
+        "type": "object"
+      },
+      "Envelope_list_EbookSummary__": {
+        "properties": {
+          "data": {
+            "description": "The result.",
+            "items": {
+              "$ref": "#/components/schemas/EbookSummary"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta",
+            "description": "Provenance and pagination metadata."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[list[EbookSummary]]",
+        "type": "object"
+      },
+      "Envelope_list_SubjectFacet__": {
+        "properties": {
+          "data": {
+            "description": "The result.",
+            "items": {
+              "$ref": "#/components/schemas/SubjectFacet"
+            },
+            "title": "Data",
+            "type": "array"
+          },
+          "meta": {
+            "$ref": "#/components/schemas/Meta",
+            "description": "Provenance and pagination metadata."
+          }
+        },
+        "required": [
+          "data",
+          "meta"
+        ],
+        "title": "Envelope[list[SubjectFacet]]",
+        "type": "object"
+      },
+      "ErrorDetail": {
+        "description": "The ``error`` object carried by every failure.",
+        "properties": {
+          "code": {
+            "description": "One of BAD_REQUEST, NOT_FOUND, RATE_LIMITED, UPSTREAM_BLOCKED, UPSTREAM_CHANGED.",
+            "title": "Code",
+            "type": "string"
+          },
+          "message": {
+            "description": "Human-readable explanation safe to show a caller.",
+            "title": "Message",
+            "type": "string"
+          },
+          "retryable": {
+            "description": "True when repeating the same request may succeed.",
+            "title": "Retryable",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "retryable"
+        ],
+        "title": "ErrorDetail",
+        "type": "object"
+      },
+      "ErrorResponse": {
+        "description": "The single failure shape.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorDetail",
+            "description": "What went wrong."
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "type": "object"
+      },
+      "FormatRef": {
+        "description": "One downloadable rendition of an ebook.\n\nWe publish the link the catalogue lists; we never download the file.",
+        "properties": {
+          "label": {
+            "description": "Label used on the page, e.g. 'Compatible epub'.",
+            "title": "Label",
+            "type": "string"
+          },
+          "mime_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "IANA media type.",
+            "title": "Mime Type"
+          },
+          "url": {
+            "description": "Absolute URL of the file.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "FormatRef",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "Meta": {
+        "description": "Provenance for every response, successful or not.",
+        "properties": {
+          "cached": {
+            "description": "True when served from the local response cache without hitting the site.",
+            "title": "Cached",
+            "type": "boolean"
+          },
+          "fetched_at": {
+            "description": "When this payload was produced (ISO 8601, UTC).",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "1-based page number, null if not paged.",
+            "title": "Page"
+          },
+          "page_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Page size honoured, null if not paged.",
+            "title": "Page Size"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Public upstream page the data was read from.",
+            "title": "Source Url"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total matching records when the upstream site exposes it, otherwise null. The Standard Ebooks catalogue does not publish a total, so this is usually null.",
+            "title": "Total"
+          }
+        },
+        "required": [
+          "fetched_at",
+          "cached"
+        ],
+        "title": "Meta",
+        "type": "object"
+      },
+      "SourceRef": {
+        "description": "An upstream transcription or scan the catalogue credits.",
+        "properties": {
+          "label": {
+            "description": "Anchor text of the credit.",
+            "title": "Label",
+            "type": "string"
+          },
+          "url": {
+            "description": "Absolute URL of the credited page.",
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "label",
+          "url"
+        ],
+        "title": "SourceRef",
+        "type": "object"
+      },
+      "SubjectFacet": {
+        "description": "A subject the catalogue can filter on.",
+        "properties": {
+          "name": {
+            "description": "Display name of the subject.",
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "description": "Value to pass as ?subject=.",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "slug",
+          "name"
+        ],
+        "title": "SubjectFacet",
+        "type": "object"
+      },
+      "SubjectRef": {
+        "description": "A subject facet, used both as a filter value and as metadata.",
+        "properties": {
+          "name": {
+            "description": "Display name of the subject, e.g. 'Science Fiction'.",
+            "title": "Name",
+            "type": "string"
+          },
+          "slug": {
+            "description": "URL-safe subject slug, e.g. 'science-fiction'.",
+            "title": "Slug",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "title": "SubjectRef",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "description": "\nA read-only JSON bridge over the public [Standard Ebooks](https://standardebooks.org)\ncatalogue, which publishes no API. Responses always use the same envelope:\n\n```json\n{\"data\": ..., \"meta\": {\"page\": 1, \"page_size\": 12, \"total\": null,\n                       \"source_url\": \"https://standardebooks.org/ebooks?...\",\n                       \"fetched_at\": \"2026-01-01T00:00:00Z\", \"cached\": false}}\n```\n\nFailures always use `{\"error\": {\"code\": ..., \"message\": ..., \"retryable\": ...}}`\nwith one of `BAD_REQUEST` (400), `NOT_FOUND` (404), `RATE_LIMITED` (429),\n`UPSTREAM_BLOCKED` (502) and `UPSTREAM_CHANGED` (502).\n",
+    "title": "Standard Ebooks Bridge",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "description": "Report whether this service is up and whether the site answered.\n\nAlways answers 200. A site that cannot be reached sets\n`data.upstream_reachable` to false and `data.status` to `degraded`.\nThe probe goes through the same cache, rate limit and circuit breaker\nas any other call, so polling this endpoint cannot overload anything.",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "Service and upstream health",
+        "tags": [
+          "service"
+        ]
+      }
+    },
+    "/v1/authors/{author_slug}": {
+      "get": {
+        "description": "Return all catalogue entries for one author.\n\nThe site's author page is a single unpaginated page, so this response\nis always page 1 with a real `meta.total`.",
+        "operationId": "list_author_ebooks_v1_authors__author_slug__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "author_slug",
+            "required": true,
+            "schema": {
+              "title": "Author Slug",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_EbookSummary__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "List every ebook by one author",
+        "tags": [
+          "records"
+        ]
+      }
+    },
+    "/v1/ebooks": {
+      "get": {
+        "description": "Return one page of the public catalogue, newest first by default.",
+        "operationId": "list_ebooks_v1_ebooks_get",
+        "parameters": [
+          {
+            "description": "1-based page number. Must be 1 or greater.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number. Must be 1 or greater.",
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page, at least 1. The ceiling is SE_BRIDGE_MAX_PAGE_SIZE (48 by default); anything larger is rejected with BAD_REQUEST.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "description": "Items per page, at least 1. The ceiling is SE_BRIDGE_MAX_PAGE_SIZE (48 by default); anything larger is rejected with BAD_REQUEST.",
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Subject slug, e.g. 'science-fiction'. An unknown but well-formed slug returns an empty page.",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Subject slug, e.g. 'science-fiction'. An unknown but well-formed slug returns an empty page.",
+              "title": "Subject"
+            }
+          },
+          {
+            "description": "One of: newest (default), author-alpha, reading-ease, length, popularity. 'relevance' is search-only; see /v1/search.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of: newest (default), author-alpha, reading-ease, length, popularity. 'relevance' is search-only; see /v1/search.",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_EbookSummary__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "List catalogue entries",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/v1/ebooks/{ebook_id}": {
+      "get": {
+        "description": "Return the full record for one ebook.\n\nThe identifier mirrors the site's own path, e.g.\n`edwin-a-abbott/flatland` or\n`thomas-a-kempis/the-imitation-of-christ/william-benham`.",
+        "operationId": "get_ebook_v1_ebooks__ebook_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ebook_id",
+            "required": true,
+            "schema": {
+              "title": "Ebook Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_EbookDetail_"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "Fetch one ebook",
+        "tags": [
+          "records"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "description": "Return catalogue entries matching `q`.\n\nA query that matches nothing is a 200 with an empty `data` list, not an\nerror.",
+        "operationId": "search_ebooks_v1_search_get",
+        "parameters": [
+          {
+            "description": "Free-text query. Must not be blank.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "description": "Free-text query. Must not be blank.",
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "description": "1-based page number. Must be 1 or greater.",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "description": "1-based page number. Must be 1 or greater.",
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Items per page.",
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 12,
+              "description": "Items per page.",
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Subject slug filter.",
+            "in": "query",
+            "name": "subject",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Subject slug filter.",
+              "title": "Subject"
+            }
+          },
+          {
+            "description": "One of: relevance, newest, author-alpha, reading-ease, length, popularity.",
+            "in": "query",
+            "name": "sort",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One of: relevance, newest, author-alpha, reading-ease, length, popularity.",
+              "title": "Sort"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_EbookSummary__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "Search the catalogue",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/v1/subjects": {
+      "get": {
+        "description": "Return every subject slug accepted by the `subject` filter.",
+        "operationId": "list_subjects_v1_subjects_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_SubjectFacet__"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Invalid or missing parameters"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "No such record"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Throttled locally or by the site"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Upstream blocked or changed"
+          }
+        },
+        "summary": "List subject facets",
+        "tags": [
+          "facets"
+        ]
+      }
+    }
+  },
+  "tags": [
+    {
+      "description": "Liveness of this bridge and of the target site.",
+      "name": "service"
+    },
+    {
+      "description": "Browse the public ebook catalogue.",
+      "name": "catalog"
+    },
+    {
+      "description": "Fetch a single record by identifier.",
+      "name": "records"
+    },
+    {
+      "description": "Full-text search over the catalogue.",
+      "name": "search"
+    },
+    {
+      "description": "Filter values published by the catalogue.",
+      "name": "facets"
+    }
+  ]
+}
