@@ -15,24 +15,24 @@ Complete output:
 
 ```
 $ .venv/bin/pytest
-...............................................................sssssssss [ 54%]
-sssss........................................................            [100%]
+.................................................................sssssss [ 52%]
+sssssss...........................................................       [100%]
 =============================== warnings summary ===============================
 tests/test_api.py::test_root_points_at_the_docs
   /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-119 passed, 14 skipped, 1 warning in 0.36s
+124 passed, 14 skipped, 1 warning in 0.41s
 ```
 
 The 14 skips are the live tests, which are opt-in. **No network access at all.**
 
 | File | Tests | Covers |
 | --- | --- | --- |
-| `tests/test_parsers.py` | 25 | Every parser against the 12 recorded fixtures |
+| `tests/test_parsers.py` | 28 | Every parser against the 12 recorded fixtures |
 | `tests/test_politeness.py` | 31 | Cache, rate limit, retries, breaker, block detection |
-| `tests/test_api.py` | 63 | Envelope, error vocabulary, validation, routing |
+| `tests/test_api.py` | 65 | Envelope, error vocabulary, validation, routing |
 | `tests/test_live.py` | 14 | Real site, skipped without `--live` |
 
 ## Live suite — `make test-live`
@@ -41,19 +41,19 @@ Complete output:
 
 ```
 $ .venv/bin/pytest --live
-........................................................................ [ 54%]
-.............................................................            [100%]
+........................................................................ [ 52%]
+..................................................................       [100%]
 =============================== warnings summary ===============================
 tests/test_api.py::test_root_points_at_the_docs
   /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-133 passed, 1 warning in 11.48s
+138 passed, 1 warning in 10.71s
 ```
 
 All 14 live tests passed against `standardebooks.org`. At one request per second,
-11.48 seconds is the rate limiter working, not slowness.
+10.71 seconds is the rate limiter working, not slowness.
 
 ## Smoke test — `make smoke`
 
@@ -65,64 +65,64 @@ $ .venv/bin/python scripts/smoke_test.py
 Smoke test against http://127.0.0.1:8000
 
 service
-  PASS  GET / returns a pointer to the docs (25ms) HTTP 200
+  PASS  GET / returns a pointer to the docs (27ms) HTTP 200
   PASS  root advertises docs, openapi and health (0ms)
   PASS  openapi.json is served (16ms) HTTP 200
   PASS  openapi documents all six endpoints (0ms) 6 paths
 
 health
-  PASS  GET /health answers 200 (968ms) HTTP 200
+  PASS  GET /health answers 200 (1025ms) HTTP 200
   PASS  upstream is reachable (0ms) breaker=closed
   PASS  the health probe went through the same limiter as traffic (0ms)
 
 catalogue listing
-  PASS  GET /v1/ebooks returns a non-empty first page (307ms) HTTP 200
+  PASS  GET /v1/ebooks returns a non-empty first page (259ms) HTTP 200
   PASS  first page has items (0ms) 12 items
   PASS  meta.total is null, not invented (0ms)
   PASS  meta.source_url points at the real site (0ms)
   PASS  each row has id, title, author and source_url (0ms) dorothy-m-richardson/oberland
-  PASS  GET /v1/ebooks?page=2 returns page two (1040ms) HTTP 200
+  PASS  GET /v1/ebooks?page=2 returns page two (1024ms) HTTP 200
   PASS  page two holds different books than page one (0ms) 12 items
   PASS  page metadata follows the request (0ms)
 
 cache
-  PASS  a repeated request is served from cache (4ms)
+  PASS  a repeated request is served from cache (5ms)
 
 search
-  PASS  GET /v1/search?q=shakespeare returns hits (1017ms) HTTP 200
+  PASS  GET /v1/search?q=shakespeare returns hits (971ms) HTTP 200
   PASS  search found books (0ms) 12 hits
   PASS  hits include the obvious author (0ms)
-  PASS  a search with no matches is a 200 with no rows (941ms) HTTP 200
+  PASS  a search with no matches is a 200 with no rows (985ms) HTTP 200
   PASS  no-match search returns an empty list (0ms)
-  PASS  special characters in q are handled (1003ms) HTTP 200
-  PASS  a non-ASCII query is handled (996ms) HTTP 200
+  PASS  special characters in q are handled (1005ms) HTTP 200
+  PASS  a non-ASCII query is handled (1026ms) HTTP 200
   PASS  a blank q is rejected (2ms) HTTP 400
   PASS  blank q uses the error envelope (0ms)
 
 filters and facets
-  PASS  subject filter applies (1364ms) HTTP 200
+  PASS  subject filter applies (1329ms) HTTP 200
   PASS  every row carries the requested subject (0ms) 12 items
-  PASS  sort is passed through (777ms) HTTP 200
-  PASS  an unknown subject returns an empty page (1200ms) HTTP 200
+  PASS  sort is passed through (748ms) HTTP 200
+  PASS  an unknown subject returns an empty page (1194ms) HTTP 200
   PASS  unknown subject is an empty 200, not an error (0ms)
-  PASS  subject facets are listed (7ms) HTTP 200
+  PASS  subject facets are listed (8ms) HTTP 200
   PASS  facets include the well-known subjects (0ms) 19 subjects
 
 records
-  PASS  GET /v1/ebooks/dorothy-m-richardson/oberland returns a record (778ms) HTTP 200
+  PASS  GET /v1/ebooks/dorothy-m-richardson/oberland returns a record (726ms) HTTP 200
   PASS  record has a source_url on the real site (0ms)
   PASS  record exposes download formats or online reading (0ms) 5 formats
-  PASS  an unknown record is 404 (874ms) HTTP 404
+  PASS  an unknown record is 404 (989ms) HTTP 404
   PASS  404 uses the error envelope (0ms)
   PASS  malformed id 'Author/Title' is 400 (2ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
-  PASS  malformed id 'a/b/c/d' is 400 (2ms) HTTP 400
+  PASS  malformed id 'a/b/c/d' is 400 (1ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
   PASS  malformed id 'author//title' is 400 (1ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
-  PASS  malformed id '..%2f..%2fetc' is 400 (2ms) HTTP 400
+  PASS  malformed id '..%2f..%2fetc' is 400 (1ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
-  PASS  GET /v1/authors/dorothy-m-richardson lists their books (1020ms) HTTP 200
+  PASS  GET /v1/authors/dorothy-m-richardson lists their books (1038ms) HTTP 200
   PASS  author total is a real count (0ms) 13 books
 
 input validation
@@ -130,7 +130,7 @@ input validation
   PASS  page=0 uses the error envelope (0ms)
   PASS  page=-1 is rejected (2ms) HTTP 400
   PASS  page=-1 uses the error envelope (0ms)
-  PASS  page_size=0 is rejected (1ms) HTTP 400
+  PASS  page_size=0 is rejected (2ms) HTTP 400
   PASS  page_size=0 uses the error envelope (0ms)
   PASS  page_size=49 is rejected (1ms) HTTP 400
   PASS  page_size=49 uses the error envelope (0ms)
@@ -222,7 +222,9 @@ sitting in a URL path, while still catching a real address such as
 | Circuit open → `RATE_LIMITED` | `test_open_breaker_reports_rate_limited` | pass |
 | Circuit half-open recovery | `test_breaker_allows_one_trial_after_the_cooldown`, `test_breaker_closes_again_after_a_success` | pass |
 | 403 / challenge → `UPSTREAM_BLOCKED` | `test_403_is_not_retried`, `test_challenge_page_is_detected_and_not_worked_around`, `test_a_marker_anywhere_in_the_body_is_detected` | pass |
-| Parser drift → `UPSTREAM_CHANGED` | `test_unrelated_html_is_reported_as_upstream_changed`, `test_drift_error_names_the_missing_selector` | pass |
+| Parser drift → `UPSTREAM_CHANGED` | `test_unrelated_html_is_reported_as_upstream_changed`, `test_drift_error_names_the_missing_selector`, `test_a_real_fixture_with_its_listing_removed_is_drift` | pass |
+| Drift names the missing element in the log | `test_mutated_fixture_returns_upstream_changed_and_logs_the_element` | pass |
+| Absent optional field → null | `test_optional_fields_the_site_omits_become_null`, `test_absent_optional_field_is_returned_as_null` | pass |
 | Internal error contained | `test_unexpected_internal_error_is_contained`, `test_error_responses_never_leak_internals` | pass |
 | Framework 404/405 enveloped | `test_unknown_route_uses_the_error_envelope`, `test_wrong_method_uses_the_error_envelope` | pass |
 | Sort context rules | `test_relevance_sort_is_rejected_when_browsing`, `test_relevance_sort_is_accepted_when_searching`, `test_newest_sort_is_omitted_upstream_for_a_browsing_request` | pass |
@@ -276,6 +278,11 @@ Worth recording, because they are the argument for writing them:
    it is now rejected with `BAD_REQUEST`.
 5. **Starlette's own 404s bypassed the error envelope.** An unknown route
    returned `{"detail": ...}` instead of `{"error": ...}`. Now handled.
+6. **Drift was logged without the missing selector.** The upstream error
+   handler logged the error code and the path, so a maintainer seeing
+   `UPSTREAM_CHANGED` had nothing pointing at the parser to fix. The log
+   line now names the selector, found while writing the test the brief asks
+   for.
 
 ## Known gaps
 
