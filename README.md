@@ -12,7 +12,7 @@ the catalogue say about them?" without scraping HTML.
 - **One upstream request per second**, a five-minute cache, and a circuit
   breaker that opens rather than hammering a site having trouble.
 - **No credentials, no personal data, no writes.**
-- **133 tests** (119 offline in 0.35s, 14 live) and a 70-check smoke test.
+- **133 tests** (119 offline in 0.36s, 14 live) and a 70-check smoke test.
 
 The site is a volunteer project that blocks named AI crawlers in `robots.txt`
 and ships a honeypot path that bans the requesting IP. This bridge identifies
@@ -385,7 +385,7 @@ no subjects or word counts.
 ## Testing
 
 ```bash
-make test          # 119 offline tests, no network, 0.35s
+make test          # 119 offline tests, no network, 0.36s
 make test-live     # adds 14 tests against the real site
 make run & make smoke   # 70 live checks over HTTP
 make lint          # ruff + format check + mypy

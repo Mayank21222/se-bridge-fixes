@@ -1,73 +1,193 @@
 # Test results
 
-Everything below was run on this machine. Commands are reproducible with `make`.
+Every transcript below was produced on this machine by the command shown above
+it, and is reproduced unedited. The only change is that ANSI colour escapes have
+been stripped from the smoke test so the file reads as plain text; the words,
+numbers and timings are as printed.
 
 ```
-Python 3.12.14 · pytest 8.4.2 · uv 0.x · platform darwin
+Python 3.12.14 · pytest 8.4.2 · platform darwin · macOS
 ```
 
 ## Offline suite — `make test`
 
+Complete output:
+
 ```
 $ .venv/bin/pytest
-119 passed, 14 skipped, 1 warning in 0.35s
+...............................................................sssssssss [ 54%]
+sssss........................................................            [100%]
+=============================== warnings summary ===============================
+tests/test_api.py::test_root_points_at_the_docs
+  /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+119 passed, 14 skipped, 1 warning in 0.36s
 ```
 
-The 14 skips are the live tests, which are opt-in. **0.35 seconds, no network
-access at all.**
+The 14 skips are the live tests, which are opt-in. **No network access at all.**
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/test_parsers.py` | 25 | Every parser against the 12 recorded fixtures |
 | `tests/test_politeness.py` | 31 | Cache, rate limit, retries, breaker, block detection |
 | `tests/test_api.py` | 63 | Envelope, error vocabulary, validation, routing |
-| `tests/test_live.py` | 14 | Real site (skipped without `--live`) |
+| `tests/test_live.py` | 14 | Real site, skipped without `--live` |
 
 ## Live suite — `make test-live`
 
+Complete output:
+
 ```
 $ .venv/bin/pytest --live
-133 passed, 1 warning in 10.78s
+........................................................................ [ 54%]
+.............................................................            [100%]
+=============================== warnings summary ===============================
+tests/test_api.py::test_root_points_at_the_docs
+  /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+133 passed, 1 warning in 11.48s
 ```
 
-All 14 live tests passed against `standardebooks.org`. At one request per
-second, 10.78 seconds is the rate limiter working, not slowness.
+All 14 live tests passed against `standardebooks.org`. At one request per second,
+11.48 seconds is the rate limiter working, not slowness.
 
 ## Smoke test — `make smoke`
 
-Against a real `uvicorn` on `http://127.0.0.1:8000`:
+Against a real `uvicorn` on `http://127.0.0.1:8000`. Complete output:
 
 ```
 $ .venv/bin/python scripts/smoke_test.py
-...
+
+Smoke test against http://127.0.0.1:8000
+
+service
+  PASS  GET / returns a pointer to the docs (25ms) HTTP 200
+  PASS  root advertises docs, openapi and health (0ms)
+  PASS  openapi.json is served (16ms) HTTP 200
+  PASS  openapi documents all six endpoints (0ms) 6 paths
+
+health
+  PASS  GET /health answers 200 (968ms) HTTP 200
+  PASS  upstream is reachable (0ms) breaker=closed
+  PASS  the health probe went through the same limiter as traffic (0ms)
+
+catalogue listing
+  PASS  GET /v1/ebooks returns a non-empty first page (307ms) HTTP 200
+  PASS  first page has items (0ms) 12 items
+  PASS  meta.total is null, not invented (0ms)
+  PASS  meta.source_url points at the real site (0ms)
+  PASS  each row has id, title, author and source_url (0ms) dorothy-m-richardson/oberland
+  PASS  GET /v1/ebooks?page=2 returns page two (1040ms) HTTP 200
+  PASS  page two holds different books than page one (0ms) 12 items
+  PASS  page metadata follows the request (0ms)
+
+cache
+  PASS  a repeated request is served from cache (4ms)
+
+search
+  PASS  GET /v1/search?q=shakespeare returns hits (1017ms) HTTP 200
+  PASS  search found books (0ms) 12 hits
+  PASS  hits include the obvious author (0ms)
+  PASS  a search with no matches is a 200 with no rows (941ms) HTTP 200
+  PASS  no-match search returns an empty list (0ms)
+  PASS  special characters in q are handled (1003ms) HTTP 200
+  PASS  a non-ASCII query is handled (996ms) HTTP 200
+  PASS  a blank q is rejected (2ms) HTTP 400
+  PASS  blank q uses the error envelope (0ms)
+
+filters and facets
+  PASS  subject filter applies (1364ms) HTTP 200
+  PASS  every row carries the requested subject (0ms) 12 items
+  PASS  sort is passed through (777ms) HTTP 200
+  PASS  an unknown subject returns an empty page (1200ms) HTTP 200
+  PASS  unknown subject is an empty 200, not an error (0ms)
+  PASS  subject facets are listed (7ms) HTTP 200
+  PASS  facets include the well-known subjects (0ms) 19 subjects
+
+records
+  PASS  GET /v1/ebooks/dorothy-m-richardson/oberland returns a record (778ms) HTTP 200
+  PASS  record has a source_url on the real site (0ms)
+  PASS  record exposes download formats or online reading (0ms) 5 formats
+  PASS  an unknown record is 404 (874ms) HTTP 404
+  PASS  404 uses the error envelope (0ms)
+  PASS  malformed id 'Author/Title' is 400 (2ms) HTTP 400
+  PASS  malformed id uses the error envelope (0ms)
+  PASS  malformed id 'a/b/c/d' is 400 (2ms) HTTP 400
+  PASS  malformed id uses the error envelope (0ms)
+  PASS  malformed id 'author//title' is 400 (1ms) HTTP 400
+  PASS  malformed id uses the error envelope (0ms)
+  PASS  malformed id '..%2f..%2fetc' is 400 (2ms) HTTP 400
+  PASS  malformed id uses the error envelope (0ms)
+  PASS  GET /v1/authors/dorothy-m-richardson lists their books (1020ms) HTTP 200
+  PASS  author total is a real count (0ms) 13 books
+
+input validation
+  PASS  page=0 is rejected (2ms) HTTP 400
+  PASS  page=0 uses the error envelope (0ms)
+  PASS  page=-1 is rejected (2ms) HTTP 400
+  PASS  page=-1 uses the error envelope (0ms)
+  PASS  page_size=0 is rejected (1ms) HTTP 400
+  PASS  page_size=0 uses the error envelope (0ms)
+  PASS  page_size=49 is rejected (1ms) HTTP 400
+  PASS  page_size=49 uses the error envelope (0ms)
+  PASS  unknown sort is rejected (1ms) HTTP 400
+  PASS  unknown sort uses the error envelope (0ms)
+  PASS  relevance while browsing is rejected (1ms) HTTP 400
+  PASS  relevance while browsing uses the error envelope (0ms)
+  PASS  malformed subject is rejected (1ms) HTTP 400
+  PASS  malformed subject uses the error envelope (0ms)
+  PASS  over-long query is rejected (1ms) HTTP 400
+  PASS  over-long query uses the error envelope (0ms)
+  PASS  non-numeric page is rejected (1ms) HTTP 400
+  PASS  non-numeric page uses the error envelope (0ms)
+  PASS  unknown endpoint is rejected (1ms) HTTP 404
+  PASS  unknown endpoint uses the error envelope (0ms)
+
+politeness
+  PASS  repeat traffic is absorbed by the cache (9ms) three identical calls, all cache hits
+  PASS  health still reports the breaker closed (1ms) HTTP 200
+  PASS  circuit breaker stayed closed under load (0ms)
+
 ------------------------------------------------------------
-all 70 checks passed
+70 checks run, 70 passed, 0 failed
+exit=0
 ```
 
 70 live checks over real HTTP: the envelope, both pages differing, cache hits,
-search hits and misses, filters, facets, detail records, every error code, and
-the politeness layer holding under repeated traffic.
+search hits and misses, filters, facets, detail records, every error code, and the
+politeness layer holding under repeated traffic. The script exits zero only when
+every check passes; this run exited 0.
 
-## Lint, format, types — `make lint`
+## Lint, format and types — `make lint`
 
 ```
-ruff check .        → All checks passed!
-ruff format --check → 22 files already formatted
-mypy app            → Success: no issues found in 12 source files
+All checks passed!
+28 files already formatted
+Success: no issues found in 12 source files
 ```
 
 ## Secret scan — `make scan`
 
 ```
-scanned 29 of 31 tracked files against 9 rules
-no secrets, credentials or personal e-mail addresses found
+scanned 30 of 32 tracked files against 9 rules
+[32mno secrets, credentials or personal e-mail addresses found[0m
+rules checked: private key, AWS access key id, GitHub token, Slack token, PyPI token, generic secret assignment, credential in a URL, opds membership credential, personal e-mail address
 ```
 
 Nine rules: private keys, AWS keys, GitHub/Slack/PyPI tokens, generic secret
 assignments, credentials in URLs, OPDS membership credentials, and personal
-e-mail addresses. Placeholders on `.invalid` and `.example` are allowed through;
-everything else fails the build. The scanner was verified against deliberately
-injected violations and caught all of them, including one inside a URL.
+e-mail addresses. Placeholders on `.invalid` and `example.com` are allowed
+through; everything else fails the build. The scanner was verified against
+deliberately injected violations and caught all of them, including one inside a
+URL. It also caught a false positive of its own — the site's `cover@2x.jpg`
+image filenames matched the e-mail rule inside three example URLs in
+`docs/AGENT_USAGE.md` — fixed in `e134bb4` with a lookbehind that skips matches
+sitting in a URL path, while still catching a real address such as
+`real.person@acmecorp.co.uk`.
 
 ## Brief's required scenarios, mapped to evidence
 
@@ -144,7 +264,6 @@ Worth recording, because they are the argument for writing them:
 
 1. **Block detection used a marker present on every page.** The catalogue's
    hidden honeypot link text appears on all pages, so checking for it flagged
-   every successful response as `UPSTREAM_BLOCKED`. Replaced with HTTP 403 and
    challenge markers, with a test asserting no real fixture contains one.
 2. **The parser rejected empty search results.** An out-of-range page and a
    no-match query have different HTML shapes; only the first parsed. Now both
