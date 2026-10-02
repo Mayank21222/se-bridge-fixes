@@ -24,6 +24,12 @@ _EBOOK_ID = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*){
 _MAX_EBOOK_ID_LENGTH = 200
 _MAX_SLUG_LENGTH = 128
 
+#: Last path segments that are catalogue *pages*, not ebook identifiers.
+#: ``/ebooks/{id}/text`` and ``/ebooks/{id}/downloads`` are the full-text and
+#: file-download trees that named crawlers are barred from; accepting them as
+#: an ``ebook_id`` would turn a detail request into a request for those trees.
+_RESERVED_EBOOK_SEGMENTS = frozenset({"text", "downloads"})
+
 
 def validate_page(page: int | None) -> int:
     """Return a 1-based page number or raise ``BAD_REQUEST``."""
@@ -106,6 +112,10 @@ def validate_ebook_id(ebook_id: str) -> str:
         raise bad_request("ebook id must not start or end with a slash")
     if "//" in raw or "\\" in raw:
         raise bad_request("ebook id must not contain empty or backslash-separated segments")
+    if any(segment.lower() in _RESERVED_EBOOK_SEGMENTS for segment in raw.split("/")):
+        raise bad_request(
+            "ebook id must not include the reserved path segments 'text' or 'downloads'"
+        )
     if not _EBOOK_ID.match(raw):
         raise bad_request(
             "ebook id must look like 'author-slug/title-slug' or "

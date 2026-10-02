@@ -67,10 +67,10 @@ tests/test_api.py::test_root_points_at_the_docs
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-126 passed, 14 skipped, 1 warning in 0.38s
+129 passed, 14 skipped, 1 warning in 0.38s
 ```
 
-**Expected: `126 passed, 14 skipped`.** The 14 skips are the live tests, which
+**Expected: `129 passed, 14 skipped`.** The 14 skips are the live tests, which
 are opt-in. This level touches no network at all — the upstream client is
 replaced by a scripted transport, a fake clock and a recording sleeper, so it
 finishes in under half a second and never depends on the site being up.
@@ -80,7 +80,7 @@ What the four files cover:
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/test_parsers.py` | 28 | Every parser against the 12 recorded pages in `tests/fixtures/` |
-| `tests/test_politeness.py` | 31 | Cache, rate limiter, retries, `Retry-After`, circuit breaker, block detection |
+| `tests/test_politeness.py` | 34 | Cache, rate limiter, retries, `Retry-After`, circuit breaker, block detection |
 | `tests/test_api.py` | 67 | The envelope, the five error codes, validation, routing |
 | `tests/test_live.py` | 14 | The real site; skipped unless you pass `--live` |
 
@@ -105,6 +105,14 @@ match the live site. If one fails, the site changed rather than your code.
 
 Expect roughly 11 seconds. That is the one-request-per-second rate limiter
 working, not slowness.
+
+> **Last run 2026-10-02, and not since.** This repository's maintainer requested
+> the target's `robots.txt`-disallowed `/honeypot` path by hand during an audit,
+> and the site stopped answering this machine afterwards. Levels 1, 2 and 5 above
+> need no network and were re-verified after every change; this level and level 4
+> cannot currently be re-run from this machine. If a request returns nothing at
+> all rather than a test failure, that is the reason and not your setup. Nothing
+> here needs to be changed to work — it needs the target to be reachable again.
 
 ---
 
@@ -304,8 +312,8 @@ route, a parameter or a response model, then commit the result.
 | Symptom | Meaning | Do |
 | --- | --- | --- |
 | Level 2 fails | Your change broke a parser, the envelope or validation | Read the failure; it names the test |
-| Level 2 passes, level 3 fails | The **site** changed | `UPSTREAM_CHANGED` names the selector; fix `app/upstream/parsers.py` |
-| Levels 3 and 4 fail on connection | The site is down, or you are offline | Nothing to fix; level 2 still works |
+| Levels 3 and 4 fail on connection | The site is down, blocked, or you are offline | Nothing to fix; level 2 still works. `000` or connection refused, not a test failure, means this |
+| Level 3 fails, level 2 passes | The **site** changed | `UPSTREAM_CHANGED` names the selector; fix `app/upstream/parsers.py` and re-record the fixture |
 | `retryable: true` | The bridge is throttling itself | Wait, then retry. Do not raise the rate limit |
 | `UPSTREAM_BLOCKED` | The site refused this client | Stop. Do not work around it |
 | Level 4 fails but 3 passes | Stale server | Restart `make run` |
@@ -331,7 +339,7 @@ are skipped.
 
 ```bash
 make setup
-make test          # 126 passed, 14 skipped, no network
+make test          # 129 passed, 14 skipped, no network
 make lint          # ruff and mypy clean
 make run           # terminal 1
 make smoke         # terminal 2 — 70 checks run, 70 passed, 0 failed

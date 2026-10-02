@@ -72,6 +72,8 @@ def error_code_for(exc: Exception) -> tuple[str, str, bool]:
     if isinstance(exc, UpstreamNotFound):
         return NOT_FOUND, str(exc), False
     if isinstance(exc, UpstreamBlocked):
+        # Includes DisallowedPath: a robots.txt refusal is the same code as a
+        # 403 from the site — stop, and do not retry.
         return UPSTREAM_BLOCKED, str(exc), False
     if isinstance(exc, UpstreamChanged):
         return UPSTREAM_CHANGED, str(exc), False
@@ -206,7 +208,8 @@ class CatalogService:
             page_size=resolved_size,
             # The catalogue paginates without ever publishing a total, and the
             # page-number strip is a sliding window, so a total would be a lie.
-            total=None,
+            # When a search or filter produces no items, 0 is the honest total.
+            total=0 if not items else None,
             source_url=fetched.url,
             fetched_at=fetched.fetched_at,
             cached=fetched.from_cache,

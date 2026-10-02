@@ -14,7 +14,7 @@ Exactly four distinct URL shapes, all GET, all on `standardebooks.org`:
 
 | Purpose | Request | Result |
 | --- | --- | --- |
-| Catalogue listing | `GET /ebooks?view=list&per-page={12\|24\|48}&page={n}` | 200, HTML |
+| Catalogue listing | `GET /ebooks?view=list&per-page={size}&page={n}` | 200, HTML |
 | Subject filter | `GET /subjects/{slug}?view=list&per-page=12` | 200, HTML |
 | Free-text search | `GET /ebooks?view=list&per-page=12&query={q}&sort=relevance` | 200, HTML |
 | Detail page | `GET /ebooks/{author}/{title}[/{contributor}]` | 200, HTML |
@@ -23,6 +23,15 @@ Exactly four distinct URL shapes, all GET, all on `standardebooks.org`:
 
 Query-parameter names, confirmed from the site's own form markup rather than
 guessed: `view=list`, `per-page`, `page`, `query`, `tags[]`, `sort`.
+
+**`per-page` is not restricted to three values.** The site's own control offers
+12, 24 and 48, which is what an earlier draft of this file recorded and what the
+README's assumptions table still claimed. Tested against the live site on
+2026-10-02, any positive integer works: `per-page=13` renders exactly 13
+`schema:Book` rows, `per-page=100` renders 100. The offered three are menu
+choices, not a validated set. The bridge therefore does not allowlist them; it
+caps the value at `SE_BRIDGE_MAX_PAGE_SIZE` (48) for its own reasons and passes
+whatever it asks for.
 
 **One redirect to record.** `tags[]` is what the filter form submits, but it is
 not what the server answers on. `GET /ebooks?...&tags[]=philosophy` returns
@@ -36,13 +45,35 @@ returning 200 directly, which is wrong — it redirects.
 
 ## What was deliberately not requested
 
-- **`/honeypot`** — `robots.txt` disallows it, and the page punishes anyone who
-  requests it. The bridge never constructs this URL. Its link text is present on
-  *every* ordinary page, so it is not usable as a block signal; block detection
-  uses HTTP 403 and challenge markers instead.
+- **`/honeypot`** — `robots.txt` disallows it, and the link on every page says
+  following it bans your IP for 24 hours. The bridge never constructs this URL,
+  and `UpstreamClient` additionally refuses any URL whose path matches it before
+  opening a socket. Its link text is present on *every* ordinary page, so it is
+  not usable as a block signal; block detection uses HTTP 403 and challenge
+  markers instead. See the note below.
 - **`/feeds/opds`** — returns 401; requires membership credentials.
 - **`/about`** — lists real patron names. Nothing in this API needs it.
 - **Any authenticated endpoint.** No credentials exist, stored or accepted.
+
+### A note on `/honeypot`, recorded honestly
+
+While auditing these claims by hand, the author of this project requested
+`/honeypot` once, to check what it returned. It returned 404, and the target
+then stopped answering requests from this machine for the rest of the session —
+connections refused on port 443 while unrelated hosts stayed reachable. Whether
+that was a honeypot-triggered ban, rate limiting or an unrelated server event
+was never established, because the correct response to a block is to stop, not
+to keep probing.
+
+Two things follow, and both are reflected in the code rather than only here:
+
+1. `UpstreamClient` now refuses any URL whose path is `/honeypot` — including a
+   trailing slash, a nested path or a query string — raising `DisallowedPath`
+   before any socket work. Previously the project only avoided the URL by never
+   constructing it, which is a single careless route away from the same outcome.
+2. The live suite and the smoke test could not be re-run after this happened, so
+   the transcripts in `docs/TEST_RESULTS.md` are from the earlier verified runs
+   and are labelled with what they do and do not prove.
 
 ## robots.txt
 
@@ -158,12 +189,13 @@ legitimately omits it, in which case the field is `null` and never a guess.
 | Field | Type | Can be missing | Selector | Notes |
 | --- | --- | --- | --- | --- |
 | `id` | `str` | no | `about` attribute | path tail after `/ebooks`, one to three segments |
-| `title` | `str` | no | `h3 span[property="schema:name"]` | required; absence is drift |
+| `title` | `str` | no | `span[property="schema:name"]` | required; absence is drift |
 | `authors` | `list[AuthorRef]` | no, but may be empty | `p.author a` | list view; grid view uses `property="schema:author"` |
+| — | — | — | — | No element carries `property="schema:keywords"`. An earlier draft of this table listed a `li.property > span[property="schema:keywords"] a` selector for subjects; no such markup exists on any recorded page, and the parser reads `/subjects/` links directly |
 | `contributors` | `list[ContributorRef]` | yes, usually empty | `p:not(.author) a` | role is inferred from the preceding text |
-| `subjects` | `list[SubjectRef]` | yes, usually empty | `li.property > span[property="schema:keywords"] a` | absent in grid mode |
-| `word_count` | `int \| null` | yes | `div.details` text | parsed from prose; absent in grid mode |
-| `reading_ease` | `float \| null` | yes | `div.details` text | score before the word count in list view, after in grid view |
+| `subjects` | `list[SubjectRef]` | yes, usually empty | `a[href^="/subjects/"]` | absent in grid mode |
+| `word_count` | `int \| null` | yes | `div.details p` text in rows; `article p` prose on detail pages | parsed from prose; absent in grid mode |
+| `reading_ease` | `float \| null` | yes | same prose as `word_count` | row text is `N words • S reading ease`; detail text is `N words (D duration) with a reading ease of S (label)` |
 | `cover_url` | `str \| null` | yes | `img[property="schema:image"]`, `src` | resolved absolute |
 | `source_url` | `str` | no | `about` attribute | resolved absolute; always present so any record is traceable |
 
@@ -188,24 +220,26 @@ minimal edition may legitimately omit any of them.
 
 | Field | Type | Can be missing | Where it comes from |
 | --- | --- | --- | --- |
-| `abstract` | `str \| null` | yes | paragraph marked `property="schema:abstract"` |
-| `description` | `str \| null` | yes | paragraph marked `property="schema:description"` |
-| `reading_time_minutes` | `int \| null` | yes | prose in the details block, digit- and unit-matched |
-| `difficulty` | `str \| null` | yes | prose in the details block, e.g. "Easy" |
-| `collections` | `list[CollectionRef]` | yes | series links outside the keywords property; `CollectionRef` is `name`, `slug` |
-| `language` | `str \| null` | yes | details prose |
-| `license` | `str \| null` | yes | the copyright statement on the page |
-| `published_at` | `str \| null` | yes | details prose, normalised to ISO 8601 date |
-| `updated_at` | `str \| null` | yes | details prose, normalised to ISO 8601 date |
-| `formats` | `list[FormatRef]` | yes | download table rows; `FormatRef` is `label`, `mime_type` (nullable), `url` |
-| `read_online_url` | `str \| null` | yes | the "Read online" link; absent when the site offers none |
+| `abstract` | `str \| null` | yes | `meta[property="schema:abstract"]` content, not a paragraph |
+| `description` | `str \| null` | yes | `div[property="schema:description"]` text, not a paragraph |
+| `reading_time_minutes` | `int \| null` | yes | the duration inside the reading-ease prose, e.g. `(2 hours 2 minutes)`; absent in grid rows |
+| `difficulty` | `str \| null` | yes | the parenthetical label in the prose, e.g. "(fairly difficult)"; grid rows carry no label at all |
+| `collections` | `list[CollectionRef]` | yes | series links, absent from most editions; `CollectionRef` is `name`, `slug` |
+| `language` | `str \| null` | yes | `meta[property="schema:inLanguage"]` content attribute |
+| `license` | `str \| null` | yes | `meta[property="schema:license"]` content — the CC0 deed URL, e.g. `https://creativecommons.org/publicdomain/zero/1.0/` |
+| `published_at` | `str \| null` | yes | `meta[property="schema:datePublished"]` content, normalised to an ISO 8601 date |
+| `updated_at` | `str \| null` | yes | `meta[property="schema:dateModified"]` content, normalised to an ISO 8601 date |
+| `formats` | `list[FormatRef]` | yes | `div.downloads-container li[typeof="schema:MediaObject"]`; `FormatRef` is `label` (anchor text), `mime_type` from `meta[property="schema:encodingFormat"]` content, `url` from `a[property="schema:contentUrl"]` |
+| `read_online_url` | `str \| null` | yes | the anchor at `href="#read-online"`; absent when the site offers none |
 | `sources` | `list[SourceRef]` | yes | provenance links in the footer section; `SourceRef` is `label`, `url` |
 | `source_repository_url` | `str \| null` | yes | the GitHub repository link for the transcription |
 
-Author `same_as` links come from the authority footnotes (Library of Congress,
-Wikipedia). Prose fields are read from the two paragraphs the site marks
-`property="schema:description"` and `property="schema:abstract"`, whitespace
-normalised in every case.
+Author `same_as` values come from `meta[property="schema:sameAs"]` content
+attributes nested inside each author anchor, one per authority record (Library
+of Congress, Wikipedia, and so on). The prose fields are not both paragraphs:
+`description` is the text of `div[property="schema:description"]`, while
+`abstract` is the `content` attribute of a `meta` tag. Whitespace is normalised
+in every case.
 
 ## Fixtures
 

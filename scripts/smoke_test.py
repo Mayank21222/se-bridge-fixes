@@ -118,11 +118,22 @@ def run(base_url: str) -> int:
 
     with httpx.Client(base_url=base_url, timeout=TIMEOUT) as client:
 
+        def json_body(resp: httpx.Response | None) -> Any:
+            if resp is None:
+                return None
+            try:
+                return resp.json()
+            except ValueError:
+                return None
+
         def call(name: str, path: str, expect: int = 200) -> httpx.Response | None:
             """Make one request, recording transport failures as a failed check."""
             try:
                 response = client.get(path)
             except httpx.HTTPError as exc:
+                report.error(name, exc)
+                return None
+            except Exception as exc:
                 report.error(name, exc)
                 return None
             if response.status_code != expect:
@@ -217,14 +228,20 @@ def run(base_url: str) -> int:
         # -- cache -----------------------------------------------------------
         print("\ncache")
         if first:
-            before = client.get("/v1/ebooks?page=1").json()["meta"]
-            report.check("a repeated request is served from cache", before["cached"] is True)
+            resp = call("GET /v1/ebooks?page=1 from cache", "/v1/ebooks?page=1")
+            body = json_body(resp)
+            if body is not None and envelope_ok(body):
+                before = body["meta"]
+                report.check("a repeated request is served from cache", before["cached"] is True)
+            else:
+                report.bad("cache check", "repeated request failed or returned invalid envelope")
 
         # -- search ----------------------------------------------------------
         print("\nsearch")
         response = call("GET /v1/search?q=shakespeare returns hits", "/v1/search?q=shakespeare")
-        if response is not None and envelope_ok(response.json()):
-            hits = response.json()["data"]
+        body = json_body(response)
+        if response is not None and body is not None and envelope_ok(body):
+            hits = body["data"]
             report.check("search found books", len(hits) > 0, f"{len(hits)} hits")
             report.check(
                 "hits include the obvious author",
@@ -235,7 +252,12 @@ def run(base_url: str) -> int:
             "/v1/search?q=zzzqqqxyzzy-no-such-book",
         )
         if response is not None:
-            report.check("no-match search returns an empty list", response.json()["data"] == [])
+            body = json_body(response) or {}
+            report.check("no-match search returns an empty list", body.get("data") == [])
+            report.check(
+                "no-match search reports total zero",
+                isinstance(body.get("meta"), dict) and body["meta"].get("total") == 0,
+            )
         response = call(
             "special characters in q are handled",
             f"/v1/search?q={quote('a&b=c d/e?f#g')}",
@@ -303,18 +325,26 @@ def run(base_url: str) -> int:
                 "404 uses the error envelope",
                 error_ok(response.json()) and response.json()["error"]["code"] == "NOT_FOUND",
             )
-        for bad in ("Author/Title", "a/b/c/d", "author//title", "..%2f..%2fetc"):
+        for bad in (
+            "Author/Title",
+            "a/b/c/d",
+            "author//title",
+            "..%2f..%2fetc",
+            "edwin-a-abbott/flatland/text",
+            "edwin-a-abbott/flatland/downloads",
+        ):
             response = call(f"malformed id {bad!r} is 400", f"/v1/ebooks/{bad}", expect=400)
             if response is not None:
+                body = json_body(response) or {}
                 report.check(
-                    "malformed id uses the error envelope",
-                    error_ok(response.json()) and response.json()["error"]["code"] == "BAD_REQUEST",
+                    f"malformed id {bad!r} uses the error envelope",
+                    error_ok(body) and body.get("error", {}).get("code") == "BAD_REQUEST",
                 )
 
         author = ebook_id.split("/")[0]
         response = call(f"GET /v1/authors/{author} lists their books", f"/v1/authors/{author}")
-        if response is not None and envelope_ok(response.json()):
-            body = response.json()
+        body = json_body(response)
+        if response is not None and body is not None and envelope_ok(body):
             report.check(
                 "author total is a real count",
                 body["meta"]["total"] == len(body["data"]) and body["meta"]["total"] > 0,
@@ -337,21 +367,35 @@ def run(base_url: str) -> int:
         ):
             response = call(f"{label} is rejected", path, expect=expect)
             if response is not None:
+                body = json_body(response) or {}
                 report.check(
                     f"{label} uses the error envelope",
-                    error_ok(response.json()) and response.json()["error"]["code"] == code,
+                    error_ok(body) and body.get("error", {}).get("code") == code,
                 )
 
         # -- politeness ------------------------------------------------------
         print("\npoliteness")
         started = time.monotonic()
+        repeat_ok = True
         for _ in range(3):
-            client.get("/v1/ebooks?page=1")
-        report.check(
-            "repeat traffic is absorbed by the cache",
-            time.monotonic() - started < 1.0,
-            "three identical calls, all cache hits",
-        )
+            try:
+                res = client.get("/v1/ebooks?page=1")
+                if res.status_code != 200:
+                    repeat_ok = False
+            except (httpx.HTTPError, Exception):
+                repeat_ok = False
+                break
+        if repeat_ok:
+            report.check(
+                "repeat traffic is absorbed by the cache",
+                time.monotonic() - started < 1.0,
+                "three identical calls, all cache hits",
+            )
+        else:
+            report.bad(
+                "repeat traffic is absorbed by the cache",
+                "could not complete cached calls or non-200 status",
+            )
         response = call("health still reports the breaker closed", "/health")
         if response is not None:
             report.check(

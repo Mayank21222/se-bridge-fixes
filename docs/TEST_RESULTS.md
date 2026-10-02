@@ -15,26 +15,38 @@ Complete output:
 
 ```
 $ make test
-.venv/bin/pytest
-...................................................................sssss [ 51%]
-sssssssss...........................................................     [100%]
+.venv/bin/pytest -v
+============================= test session starts ==============================
+platform darwin -- Python 3.12.14, pytest-8.4.2, pluggy-1.6.0
+testpaths: tests
+plugins: anyio-4.15.1
+collected 153 items
+
+tests/test_api.py ......................................................
+..................
+tests/test_live.py ssssssssssssss
+tests/test_parsers.py ............................
+tests/test_politeness.py .......................................
+
 =============================== warnings summary ===============================
 tests/test_api.py::test_root_points_at_the_docs
   /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-126 passed, 14 skipped, 1 warning in 0.38s
+139 passed, 14 skipped, 1 warning in 0.43s
 ```
 
 The 14 skips are the live tests, which are opt-in. **No network access at all.**
+This is the only suite that can be re-run while the target is refusing this
+machine; the counts below are current.
 
 | File | Tests | Covers |
 | --- | --- | --- |
 | `tests/test_parsers.py` | 28 | Every parser against the 12 recorded fixtures |
-| `tests/test_politeness.py` | 31 | Cache, rate limit, retries, breaker, block detection |
-| `tests/test_api.py` | 67 | Envelope, error vocabulary, validation, routing |
-| `tests/test_live.py` | 14 | Real site, skipped without `--live` |
+| `tests/test_politeness.py` | 35 | Cache, rate limit, retries, breaker, block detection, robots.txt guard (incl. case/percent-encoding) |
+| `tests/test_api.py` | 76 | Envelope, error vocabulary, validation, routing, redirect guards, empty-result `total` |
+| `tests/test_live.py` | 14 | Real site, skipped without `--live`, not re-run since 2026-10-02 |
 
 ## Live suite — `make test-live`
 
@@ -54,7 +66,7 @@ tests/test_api.py::test_root_points_at_the_docs
 140 passed, 1 warning in 11.13s
 ```
 
-All 14 live tests passed against `standardebooks.org`. At one request per second,
+All 14 live tests passed against `standardebooks.org` in the run recorded above (2026-10-02). They have not been re-run since; see Known gaps. At one request per second,
 11.13 seconds is the rate limiter working, not slowness.
 
 ## Smoke test — `make smoke`
@@ -205,6 +217,7 @@ sitting in a URL path, while still catching a real address such as
 | No-match filter → 200 empty | `test_empty_result_is_a_200_with_no_rows`, `test_live_subject_filter_returns_only_that_subject` | pass |
 | Subject filter → subject path | `test_subject_filter_selects_the_subject_path`, `test_subject_url_builder_escapes_a_segment_defensively` | pass |
 | Traversing subject slug → 400, no request | `test_a_traversing_subject_slug_is_rejected_before_any_request` | pass |
+| robots.txt-disallowed path → refused, no request | `test_a_robots_disallowed_path_is_never_requested`, `test_the_disallowed_guard_covers_trailing_slash_and_nesting`, `test_a_permitted_path_is_not_mistaken_for_a_disallowed_one` | pass |
 | Detail has `source_url` | `test_detail_returns_the_full_record`, smoke | pass |
 | Unknown id → 404 | `test_unknown_ebook_is_not_found`, `test_live_unknown_ebook_is_not_found` | pass |
 | Malformed id → 400 | `test_malformed_ids_are_rejected_without_calling_upstream` (9 cases) | pass |
@@ -235,6 +248,11 @@ sitting in a URL path, while still catching a real address such as
 | Sort context rules | `test_relevance_sort_is_rejected_when_browsing`, `test_relevance_sort_is_accepted_when_searching`, `test_newest_sort_is_omitted_upstream_for_a_browsing_request` | pass |
 | Honeypot never requested | No code path builds the URL; `docs/RECON.md` records it | pass |
 | Credentials never sent | `test_requests_identify_themselves_and_never_carry_credentials`, `make scan` | pass |
+| Empty result has `total: 0` (not `null`) | `test_empty_result_is_a_200_with_no_rows`, `test_search_with_no_matches_is_an_empty_200` | pass |
+| Redirect to disallowed path → `UPSTREAM_BLOCKED` | `test_redirect_to_disallowed_path_returns_upstream_blocked` | pass |
+| Off-site redirect → `UPSTREAM_BLOCKED` | `test_redirect_off_site_returns_upstream_blocked` | pass |
+| Disallowed guard is case-insensitive and decodes percent-encoding | `test_disallowed_guard_is_case_insensitive_and_handles_percent_encoding` | pass |
+| Very long / special-character query handled safely | `test_search_with_special_characters_and_very_long_query_is_handled_safely` | pass |
 
 ## How the offline suite avoids the network
 
@@ -305,6 +323,25 @@ Worth recording, because they are the argument for writing them:
    the canonical path, the slug is escaped into one path segment, and the test
    asserts the structure rather than the string.
 
+9. **Documented selectors and parameters did not match the site.** Auditing
+   every claim in `docs/RECON.md` against the recorded fixtures found four
+   that were wrong: subjects were documented as coming from
+   `span[property="schema:keywords"]`, which appears on no page at all;
+   `abstract` was documented as a paragraph when it is a `meta` content
+   attribute; `language`, `published_at` and `updated_at` were documented as
+   prose in the details block when all three are `meta` content attributes;
+   `per-page` was documented as accepting only 12, 24 and 48, when the server
+   honours any positive integer and those three are merely the values its own
+   menu offers. Corrected against the fixtures, and `license` turned out to be a
+   real CC0 deed URL rather than the free-text statement it was described as.
+10. **Nothing stopped the code from requesting a disallowed path.** The project
+   avoided `/honeypot` only by never constructing the URL, while every page the
+   parsers read carries a hidden link to it. That is a single careless route away
+   from a 24-hour IP ban, as this repository's own maintainer found out by
+   requesting it by hand during this audit. `UpstreamClient` now refuses any URL
+   whose path matches, before any socket work, and three tests cover the refusal,
+   its aliases and a lookalike path that must still be allowed.
+
 ## Known gaps
 
 - No load test. Rate limiting is verified by injected-clock assertions, not by
@@ -315,3 +352,19 @@ Worth recording, because they are the argument for writing them:
   uses a distinct page so it does not depend on an earlier test having run.
 - HTML fixtures go stale if the site redesigns. That is the intended failure
   mode — a drift error, not a silent wrong answer.
+- **The live suite and smoke test were last run before this repository's
+  maintainer fetched `/honeypot` by hand on 2026-10-02.** The target stopped
+  answering this machine afterwards, so neither has been re-run since. The
+  transcripts above are genuine runs from 2026-10-02, before that happened, and
+  they are recorded here as evidence of what passed rather than as a claim that
+  it passes right now. The offline suite, lint, type check and secret scan do not
+  touch the network and were re-verified after every change in this repository,
+  including the robots.txt guard added in response.
+
+  Two corrections in this file also rest on observations made just before the
+  site became unreachable: that the target serves subject filtering from
+  `/subjects/{slug}` while the filter form submits `tags[]`, and that
+  `per-page` accepts any positive integer rather than only the three values its
+  own menu offers. Both were checked against real responses, and the evidence is
+  in `docs/RECON.md`. They could not be re-confirmed afterwards, so they are
+  stated as what was observed on the day.

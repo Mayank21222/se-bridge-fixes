@@ -21,7 +21,7 @@ from app.errors import (
     UpstreamNotFound,
     UpstreamRateLimited,
 )
-from app.upstream.client import UpstreamClient
+from app.upstream.client import DisallowedPath, UpstreamClient
 from tests.conftest import (
     FIXTURES,
     FakeClock,
@@ -246,6 +246,130 @@ def test_a_single_attempt_setting_disables_retries(transport: FakeTransport) -> 
     with pytest.raises(UpstreamRateLimited):
         client.get_html(URL)
     assert len(transport.requests) == 1
+
+
+# ------------------------------------------------------------ robots.txt guard
+def test_a_robots_disallowed_path_is_never_requested(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """/honeypot promises to ban the requesting IP, so no request may be made.
+
+    This guard exists because the target links to that path from every single
+    page the bridge parses. Relying on the URL builders never producing it would
+    be one careless route away from banning the client outright.
+    """
+    client = make_client([script(200, BODY)])
+    with pytest.raises(DisallowedPath):
+        client.get_html("https://standardebooks.org/honeypot")
+    assert transport.requests == [], "a disallowed path must cost the target nothing"
+
+
+def test_the_disallowed_guard_covers_trailing_slash_and_nesting(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """The guard matches the path, not one literal string, so aliases are caught."""
+    client = make_client([script(200, BODY)])
+    for suffix in ("/honeypot/", "/honeypot/extra", "/honeypot?x=1"):
+        with pytest.raises(DisallowedPath):
+            client.get_html(f"https://standardebooks.org{suffix}")
+    assert transport.requests == []
+
+
+def test_a_permitted_path_is_not_mistaken_for_a_disallowed_one(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """Prefix lookalikes of /honeypot, and ordinary catalogue paths, still go out."""
+    client = make_client([script(200, BODY)])
+    client.get_html("https://standardebooks.org/honeypots")
+    client.get_html("https://standardebooks.org/ebooks?view=list")
+    assert len(transport.requests) == 2
+
+
+def test_disallowed_guard_is_case_insensitive_and_handles_percent_encoding(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """Case variations and percent-encoding cannot bypass the disallowed guard."""
+    client = make_client([script(200, BODY)])
+    for path in (
+        "https://standardebooks.org/Honeypot",
+        "https://standardebooks.org/HONEYPOT/",
+        "https://standardebooks.org/%68oneypot",
+        "https://standardebooks.org/ebooks/author/title/TEXT",
+        "https://standardebooks.org/ebooks/author/title/DOWNLOADS/file.epub",
+    ):
+        with pytest.raises(DisallowedPath):
+            client.get_html(path)
+    assert transport.requests == []
+
+
+def test_full_text_and_download_paths_are_never_requested(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """Named crawlers are barred from these trees; this client is too."""
+    client = make_client([script(200, BODY)])
+    for suffix in (
+        "/ebooks/edwin-a-abbott/flatland/text",
+        "/ebooks/edwin-a-abbott/flatland/text/single-page",
+        "/ebooks/edwin-a-abbott/flatland/downloads",
+        "/ebooks/edwin-a-abbott/flatland/downloads/edwin-a-abbott_flatland.epub",
+        "/ebooks/dorothy-m-richardson/downloads",
+    ):
+        with pytest.raises(DisallowedPath):
+            client.get_html(f"https://standardebooks.org{suffix}")
+    assert transport.requests == []
+
+
+def test_a_redirect_to_a_disallowed_path_is_not_followed(
+    make_client: AnyFactory, transport: FakeTransport
+) -> None:
+    """httpx auto-follow would skip the guard; hops are therefore inspected."""
+    client = make_client(
+        [
+            script(302, headers={"Location": "/honeypot"}),
+            script(200, BODY),
+        ]
+    )
+    with pytest.raises(DisallowedPath):
+        client.get_html(URL)
+    assert [str(request.url.path) for request in transport.requests] == ["/ebooks"], (
+        "the honeypot hop must never be requested"
+    )
+
+
+def test_same_host_redirects_are_followed_and_rate_limited(
+    settings: Settings,
+    transport: FakeTransport,
+    clock: FakeClock,
+    sleeper: RecordingSleeper,
+) -> None:
+    """A 302 is another outbound call, so it waits its turn like any other."""
+    slow = settings.model_copy(update={"requests_per_second": 1.0})
+    client = UpstreamClient(
+        slow,
+        transport=transport,
+        clock=clock.monotonic,
+        wall_clock=clock.wall_clock,
+        sleeper=sleeper,
+    )
+    transport.queue = [
+        script(302, headers={"Location": "/ebooks?view=list&page=2"}),
+        script(200, BODY),
+    ]
+    result = client.get_html("https://standardebooks.org/ebooks?view=list")
+    assert result.text == BODY
+    assert len(transport.requests) == 2
+    assert sleeper.calls == [1.0]
+
+
+def test_disallowed_path_is_upstream_blocked_not_rate_limited() -> None:
+    """A robots.txt refusal must not look retryable to an API caller."""
+    from app.services.catalog import error_code_for
+
+    code, _message, retryable = error_code_for(
+        DisallowedPath("https://standardebooks.org/honeypot is disallowed")
+    )
+    assert code == "UPSTREAM_BLOCKED"
+    assert retryable is False
 
 
 # ----------------------------------------------------------------- not retried

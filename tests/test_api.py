@@ -180,6 +180,7 @@ def test_empty_result_is_a_200_with_no_rows(make_api: AnyFactory) -> None:
         response = client.get("/v1/ebooks?subject=not-a-real-subject")
     assert response.status_code == 200
     assert response.json()["data"] == []
+    assert response.json()["meta"]["total"] == 0
 
 
 # -------------------------------------------------------------------- search
@@ -210,6 +211,7 @@ def test_search_with_no_matches_is_an_empty_200(make_api: AnyFactory) -> None:
         response = client.get("/v1/search?q=zzzqqqxyzzy")
     assert response.status_code == 200
     assert response.json()["data"] == []
+    assert response.json()["meta"]["total"] == 0
 
 
 def test_special_characters_in_a_query_are_encoded_not_injected(
@@ -221,6 +223,20 @@ def test_special_characters_in_a_query_are_encoded_not_injected(
     url = transport.urls[0]
     assert "&b=c" not in url, "the query must not break out of its parameter"
     assert " " not in url, "spaces must be percent-encoded"
+
+
+def test_search_with_special_characters_and_very_long_query_is_handled_safely(
+    make_api: AnyFactory, transport: Any
+) -> None:
+    very_long_query = "title & author = 'test' / \"quote\" ? # fragment " + "a" * 140
+    assert len(very_long_query) <= 200
+    with make_api([script(200, LISTING)]) as client:
+        response = client.get("/v1/search", params={"q": very_long_query})
+    assert response.status_code == 200
+    assert len(transport.requests) == 1
+    url = transport.urls[0]
+    assert "&author=" not in url
+    assert "#" not in url.split("?")[1]
 
 
 def test_over_long_query_is_rejected(make_api: AnyFactory, transport: Any) -> None:
@@ -277,6 +293,8 @@ def test_unknown_ebook_is_not_found(make_api: AnyFactory) -> None:
         "..%2f..%2fetc%2fpasswd",
         "Author/Title",
         "author\\title",
+        "edwin-a-abbott/flatland/text",
+        "edwin-a-abbott/flatland/downloads",
     ],
 )
 def test_malformed_ids_are_rejected_without_calling_upstream(
@@ -547,3 +565,28 @@ def test_wrong_method_uses_the_error_envelope(make_api: AnyFactory) -> None:
     body = response.json()["error"]
     assert body["code"] == "BAD_REQUEST"
     assert body["message"] == "method not allowed on this path"
+
+
+# ----------------------------------------------------------- redirects guard
+def test_redirect_to_disallowed_path_returns_upstream_blocked(make_api: AnyFactory) -> None:
+    """A redirect hop to /honeypot is refused before socket work and returns 502."""
+    with make_api([script(302, headers={"Location": "/honeypot"})]) as client:
+        response = client.get("/v1/ebooks")
+    assert response.status_code == 502
+    body = response.json()["error"]
+    assert body["code"] == "UPSTREAM_BLOCKED"
+    assert body["retryable"] is False
+    assert "disallowed" in body["message"]
+
+
+def test_redirect_off_site_returns_upstream_blocked(make_api: AnyFactory) -> None:
+    """An off-site redirect is refused and mapped to UPSTREAM_BLOCKED."""
+    with make_api(
+        [script(302, headers={"Location": "https://malicious.example.com/phishing"})]
+    ) as client:
+        response = client.get("/v1/ebooks")
+    assert response.status_code == 502
+    body = response.json()["error"]
+    assert body["code"] == "UPSTREAM_BLOCKED"
+    assert body["retryable"] is False
+    assert "refusing off-site redirect" in body["message"]

@@ -121,9 +121,10 @@ def _is_external(href: str | None) -> bool:
 # --------------------------------------------------------------------------
 # Note on the catalogue's honeypot: every page contains a hidden link at
 # /honeypot that promises to ban the client IP for 24 hours. This project never
-# requests that path, and it is not a usable block signal because the link text
-# is present on every ordinary page too. Anti-bot *responses* (HTTP 403 and
-# challenge interstitials) are detected once, in app.upstream.client.
+# requests that path: UpstreamClient refuses it (and the /text and /downloads
+# trees) before opening a socket. It is not a usable block signal because the
+# link text is present on every ordinary page too. Anti-bot *responses*
+# (HTTP 403 and challenge interstitials) are detected in app.upstream.client.
 
 
 def _require(node: Node | None, selector: str, *, context: str) -> Node:

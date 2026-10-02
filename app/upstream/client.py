@@ -27,6 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
+from urllib.parse import unquote, urljoin, urlsplit
 
 import httpx
 
@@ -48,6 +49,43 @@ _BLOCK_MARKERS = (
 )
 
 _CACHE_MAX_ENTRIES = 512
+
+#: Paths ``robots.txt`` disallows for ``User-agent: *``. Every page the bridge
+#: reads contains a hidden link to ``/honeypot`` whose own text promises to ban
+#: the requesting IP, so a parser bug or a careless URL build must not follow
+#: it. The check lives here rather than in the URL builder: this is the last
+#: point before a byte leaves the process, including a ``Location`` hop.
+_DISALLOWED_PATHS = ("/honeypot",)
+
+#: Path segments that address full text or file downloads. Named AI crawlers
+#: are barred from ``/ebooks/*/text*`` and ``/ebooks/*/downloads/*``; this
+#: client treats those rules as binding on itself too, and refuses the same
+#: paths so a caller cannot reach them by putting ``text`` or ``downloads`` in
+#: an ebook identifier.
+_RESTRICTED_EBOOK_SEGMENTS = frozenset({"text", "downloads"})
+
+_MAX_REDIRECTS = 10
+
+
+class DisallowedPath(UpstreamBlocked):
+    """Raised before any request when a URL is disallowed by ``robots.txt``.
+
+    Subclasses :class:`UpstreamBlocked` so the API maps it to
+    ``UPSTREAM_BLOCKED`` with ``retryable: false``, not to the retryable
+    ``RATE_LIMITED`` catch-all for generic upstream errors.
+    """
+
+
+def _is_disallowed(url: str) -> bool:
+    """True when ``url`` targets a path this client is forbidden to request."""
+    raw_path = urlsplit(url).path
+    path = unquote(raw_path).lower().rstrip("/") or "/"
+    if any(path == rule or path.startswith(f"{rule}/") for rule in _DISALLOWED_PATHS):
+        return True
+    parts = [segment for segment in path.split("/") if segment]
+    if len(parts) >= 2 and parts[0] == "ebooks":
+        return any(segment in _RESTRICTED_EBOOK_SEGMENTS for segment in parts[1:])
+    return False
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +223,15 @@ class _CircuitBreaker:
                     self._consecutive_failures,
                 )
 
+    def on_abort(self) -> None:
+        """Clear an in-flight trial without counting a success or a failure.
+
+        Used when we refuse to continue (a disallowed redirect target) after
+        the breaker has already admitted the call.
+        """
+        with self._lock:
+            self._trial_in_flight = False
+
 
 class UpstreamClient:
     """A polite, caching, self-limiting HTTP client for the target site."""
@@ -217,7 +264,7 @@ class UpstreamClient:
                 self._settings.read_timeout_seconds,
                 connect=self._settings.connect_timeout_seconds,
             ),
-            follow_redirects=True,
+            follow_redirects=False,
             headers={
                 "User-Agent": self._settings.user_agent,
                 "Accept": "text/html,application/xhtml+xml",
@@ -248,7 +295,15 @@ class UpstreamClient:
             The body plus provenance. Raises :class:`~app.errors.UpstreamNotFound`,
             :class:`~app.errors.UpstreamBlocked`, :class:`~app.errors.UpstreamRateLimited`
             or :class:`~app.errors.UpstreamError` otherwise.
+
+        Raises:
+            DisallowedPath: if the URL is forbidden by the target's
+                ``robots.txt``. Raised before any socket work, so a disallowed
+                path can never cost the target a request.
         """
+        if _is_disallowed(url):
+            raise DisallowedPath(f"{_safe_url(url)} is disallowed by the target's robots.txt")
+
         cached = self._cache.get(url)
         if cached is not None:
             logger.debug("cache hit %s", _safe_url(url))
@@ -257,9 +312,11 @@ class UpstreamClient:
         self._breaker.before_call()
         attempts = self._settings.max_attempts
         for attempt in range(1, attempts + 1):
-            self._limiter.acquire()
             try:
-                response = self._http.get(url)
+                response = self._request_following_redirects(url)
+            except UpstreamBlocked:
+                self._breaker.on_abort()
+                raise
             except httpx.HTTPError as exc:
                 self._breaker.on_failure()
                 if attempt < attempts:
@@ -331,6 +388,41 @@ class UpstreamClient:
         )
 
     # -- helpers ------------------------------------------------------------
+    def _request_following_redirects(self, url: str) -> httpx.Response:
+        """GET ``url``, following same-host redirects under the same guards.
+
+        Each hop is rate-limited and checked against the disallowed-path
+        list *before* the request is sent, so a ``Location: /honeypot``
+        cannot sneak past the guard that ``httpx`` auto-follow would skip.
+        """
+        current = url
+        for _ in range(_MAX_REDIRECTS):
+            if _is_disallowed(current):
+                raise DisallowedPath(
+                    f"{_safe_url(current)} is disallowed by the target's robots.txt"
+                )
+            self._limiter.acquire()
+            response = self._http.get(current)
+            if response.has_redirect_location:
+                current = self._redirect_target(current, response)
+                continue
+            return response
+        raise UpstreamError(f"too many redirects for {_safe_url(url)}")
+
+    def _redirect_target(self, current_url: str, response: httpx.Response) -> str:
+        """Resolve ``Location`` and refuse off-site hops."""
+        location = response.headers.get("Location")
+        if not location:
+            raise UpstreamError(f"redirect from {_safe_url(current_url)} had no Location")
+        nxt = urljoin(str(response.url), location)
+        origin = urlsplit(current_url)
+        dest = urlsplit(nxt)
+        if dest.netloc and dest.netloc != origin.netloc:
+            raise UpstreamBlocked(
+                f"refusing off-site redirect from {_safe_url(current_url)} to {dest.netloc}"
+            )
+        return nxt
+
     def _backoff(self, attempt: int) -> float:
         """Exponential backoff for attempt ``n`` with equal jitter."""
         raw = self._settings.backoff_base_seconds * (2 ** (attempt - 1))
