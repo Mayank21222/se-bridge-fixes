@@ -35,28 +35,58 @@ RESET = "\033[0m"
 
 @dataclass
 class Report:
-    """Collects check results and prints them as they happen."""
+    """Collects check results and prints them as they happen.
+
+    Every check prints one line carrying its name, PASS or FAIL, and how
+    long it took, so a slow upstream is visible rather than inferred from
+    the total.
+    """
 
     passed: int = 0
     failed: list[str] = field(default_factory=list)
+    ran: int = 0
+    _last: float = field(default_factory=time.perf_counter)
 
-    def ok(self, name: str, detail: str = "") -> None:
+    def _line(self, label: str, colour: str, name: str, elapsed: float, detail: str = "") -> None:
+        suffix = f" {DIM}{detail}{RESET}" if detail else ""
+        print(f"  {colour}{label}{RESET}  {name} {DIM}({elapsed * 1000:.0f}ms){RESET}{suffix}")
+
+    def _elapsed(self, elapsed: float | None) -> float:
+        """Return the caller's measurement, or the gap since the last check.
+
+        Checks are reported after the HTTP call they describe, so the time
+        since the previous check is the cost of that check.
+        """
+        now = time.perf_counter()
+        measured = now - self._last if elapsed is None else elapsed
+        self._last = now
+        return measured
+
+    def ok(self, name: str, detail: str = "", elapsed: float | None = None) -> None:
+        self.ran += 1
         self.passed += 1
-        print(f"  {GREEN}pass{RESET}  {name}{f' {DIM}{detail}{RESET}' if detail else ''}")
+        self._line("PASS", GREEN, name, self._elapsed(elapsed), detail)
 
-    def bad(self, name: str, detail: str) -> None:
+    def bad(self, name: str, detail: str, elapsed: float | None = None) -> None:
+        self.ran += 1
         self.failed.append(f"{name}: {detail}")
-        print(f"  {RED}FAIL{RESET}  {name} {RED}{detail}{RESET}")
+        self._line("FAIL", RED, name, self._elapsed(elapsed), f"{RED}{detail}{RESET}")
 
-    def check(self, name: str, condition: bool, detail: str = "") -> bool:
+    def check(
+        self,
+        name: str,
+        condition: bool,
+        detail: str = "",
+        elapsed: float | None = None,
+    ) -> bool:
         if condition:
-            self.ok(name, detail)
+            self.ok(name, detail, elapsed)
         else:
-            self.bad(name, detail or "condition was false")
+            self.bad(name, detail or "condition was false", elapsed)
         return condition
 
-    def error(self, name: str, exc: BaseException) -> None:
-        self.bad(name, f"{type(exc).__name__}: {exc}")
+    def error(self, name: str, exc: BaseException, elapsed: float | None = None) -> None:
+        self.bad(name, f"{type(exc).__name__}: {exc}", elapsed)
 
 
 def envelope_ok(body: Any) -> bool:
@@ -330,14 +360,16 @@ def run(base_url: str) -> int:
             )
 
     # -- summary -----------------------------------------------------------
-    total = report.passed + len(report.failed)
+    total = report.ran
     print(f"\n{'-' * 60}")
-    if report.failed:
-        print(f"{RED}{len(report.failed)} of {total} checks failed:{RESET}")
+    failed_count = len(report.failed)
+    if failed_count:
+        summary = f"{total} checks run, {report.passed} passed, {failed_count} failed"
+        print(f"{RED}{summary}{RESET}")
         for failure in report.failed:
             print(f"  - {failure}")
         return 1
-    print(f"{GREEN}all {total} checks passed{RESET}")
+    print(f"{GREEN}{total} checks run, {report.passed} passed, 0 failed{RESET}")
     return 0
 
 
