@@ -9,10 +9,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 
+from app.config import Settings
 from app.errors import ERROR_STATUS
+from app.upstream import endpoints
 from tests.conftest import fixture_html, script
 
 AnyFactory = Callable[..., Any]
@@ -128,10 +131,48 @@ def test_page_two_asks_upstream_for_page_two(make_api: AnyFactory, transport: An
     assert items[0]["id"] == "theodore-roosevelt/a-book-lovers-holidays-in-the-open"
 
 
-def test_subject_filter_reaches_upstream_as_a_tag(make_api: AnyFactory, transport: Any) -> None:
+def test_subject_filter_selects_the_subject_path(make_api: AnyFactory, transport: Any) -> None:
+    """A subject filter asks for /subjects/{slug}, not /ebooks?tags[]=.
+
+    The site's own filter form submits ``tags[]``, but the server answers that
+    with a 302 to the subject path, so requesting the path directly is both
+    canonical and one round trip cheaper.
+    """
     with make_api([script(200, LISTING)]) as client:
         client.get("/v1/ebooks?subject=science-fiction")
-    assert "tags%5B%5D=science-fiction" in transport.urls[0]
+    assert transport.urls[0].startswith("https://standardebooks.org/subjects/science-fiction?")
+
+
+def test_a_traversing_subject_slug_is_rejected_before_any_request(
+    make_api: AnyFactory, transport: Any
+) -> None:
+    """A slug that tries to climb out of /subjects/ never becomes a request.
+
+    Two layers refuse it: the slug validator, and path-segment escaping in the
+    URL builder. The validator is what a caller actually meets, and it must
+    reject rather than quietly fetching something unexpected.
+    """
+    with make_api([script(200, LISTING)]) as client:
+        response = client.get("/v1/ebooks?subject=../../honeypot")
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "BAD_REQUEST"
+    assert transport.requests == [], "an invalid slug must never reach upstream"
+
+
+def test_subject_url_builder_escapes_a_segment_defensively(settings: Settings) -> None:
+    """Belt and braces: even bypassing the validator, a slug stays one segment.
+
+    The claim is about structure, not characters. After escaping, the slug is a
+    single path segment whose name happens to contain dots, so it cannot climb
+    out of /subjects/ however the server decodes it.
+    """
+    built = endpoints.catalog_url(settings, page=1, per_page=12, subject="../../honeypot")
+    parsed = urlsplit(built)
+    assert parsed.scheme == "https"
+    assert parsed.netloc == "standardebooks.org"
+    segments = [s for s in parsed.path.split("/") if s]
+    assert segments[:1] == ["subjects"], parsed.path
+    assert len(segments) == 2, f"slug must be one segment, got {parsed.path!r}"
 
 
 def test_empty_result_is_a_200_with_no_rows(make_api: AnyFactory) -> None:

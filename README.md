@@ -12,10 +12,11 @@ the catalogue say about them?" without scraping HTML.
 - **One upstream request per second**, a five-minute cache, and a circuit
   breaker that opens rather than hammering a site having trouble.
 - **No credentials, no personal data, no writes.**
-- **138 tests** (124 offline in 0.41s, 14 live) and a 70-check smoke test.
+- **140 tests** (126 offline in 0.38s, 14 live) and a 70-check smoke test.
 
-The site is a volunteer project that blocks named AI crawlers in `robots.txt`
-and ships a honeypot path that bans the requesting IP. This bridge identifies
+The site is a volunteer project whose `robots.txt` restricts a named group of
+AI crawlers from full text and downloads, and ships a honeypot path that bans
+the requesting IP. This bridge reads none of the restricted paths, identifies
 itself, stays slow, caches hard, and reports a block instead of working around
 one. See [Why this target](#why-this-target) — that decision is argued in full
 in [`docs/TARGET_SELECTION.md`](docs/TARGET_SELECTION.md).
@@ -58,7 +59,7 @@ python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 | --- | --- |
 | `make setup` | Create the virtualenv and install dependencies |
 | `make run` | Start the API on port 8000 with reload |
-| `make test` | Offline suite: 124 tests, no network |
+| `make test` | Offline suite: 126 tests, no network |
 | `make test-live` | Adds the 14 tests that hit the real site |
 | `make smoke` | 70 live checks against a running server |
 | `make lint` | `ruff check`, `ruff format --check`, `mypy` |
@@ -240,7 +241,7 @@ URL construction          pure HTML → records, raising on drift
 Two boundaries carry most of the design. **Parsers are pure** — no I/O, no
 settings, so they are tested directly against fixtures. **The client is the only
 network code**, and it takes `transport`, `clock`, `wall_clock`, `sleeper` and
-`random_source` as constructor arguments. That single seam is what lets 124
+`random_source` as constructor arguments. That single seam is what lets 126
 tests run offline in a third of a second, with exact timing assertions.
 
 ### Politeness
@@ -299,9 +300,9 @@ stops where that stops. Specifically:
   `/honeypot` path that bans the requesting IP.
 - **A block is reported, never circumvented.** A 403 or a CAPTCHA page becomes
   `UPSTREAM_BLOCKED`. There is no proxy rotation, no header spoofing, no
-  challenge solving and no open proxy surface. When the site's `robots.txt`
-  disallows named AI crawlers, this service identifies itself honestly and accepts
-  that the operator may block it.
+  challenge solving and no open proxy surface. `robots.txt` restricts named AI
+  crawlers from full text and downloads; this service never requests those paths
+  and identifies itself honestly, accepting that the operator may block it.
 - **Slow by default.** One request per second, a five-minute cache, backoff with
   jitter on 429 and 5xx, `Retry-After` honoured, and a circuit breaker that stops
   calling after repeated failures.
@@ -327,7 +328,7 @@ Made where the site was ambiguous, all cheap to reverse:
 | --- | --- | --- |
 | `view=list` renders the fields this API returns | It is the denser layout; `view=grid` omits some | Switch `upstream/endpoints.py`; parsers already handle both |
 | `per-page` accepts 12, 24 and 48 | Only these are offered by the site's own control | Extend the validation allowlist |
-| `tags[]` holds subject slugs | Values match the subject facet slugs exactly | Prefix mapping in `endpoints.py` |
+| A subject filter is the path `/subjects/{slug}` | The filter form submits `tags[]`, but that request 302s to the subject path, which is what the site's own links use | Prefix mapping in `endpoints.py` |
 | An ebook id is one to three path segments | Detail URLs are `/ebooks/{author}/{title}[/{contributor}]` | Tighten the validator |
 | Public sort vocabulary is `newest`, `author-alpha`, `reading-ease`, `length`, `popularity` | Taken from the site's own sort control | Update the mapping table |
 | A missing optional field returns `null` | The site omits it, and inventing text would be a lie | — |
@@ -385,7 +386,7 @@ no subjects or word counts.
 ## Testing
 
 ```bash
-make test          # 124 offline tests, no network, 0.41s
+make test          # 126 offline tests, no network, 0.38s
 make test-live     # adds 14 tests against the real site
 make run & make smoke   # 70 live checks over HTTP
 make lint          # ruff + format check + mypy
@@ -397,7 +398,7 @@ Everything is injectable, so the offline suite is fully deterministic:
 would, and `FakeTransport` replaying scripted responses while recording every
 URL that *would* have been requested.
 
-Full results, the required-scenario matrix, and the six defects these tests
+Full results, the required-scenario matrix, and the eight defects these tests
 caught are in [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md). A step-by-step
 guide to running every level yourself is in
 [`docs/HOW_TO_TEST.md`](docs/HOW_TO_TEST.md).

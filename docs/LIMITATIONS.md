@@ -3,19 +3,23 @@
 An honest list of what this bridge cannot do, why, and what fixing it properly
 would involve. Nothing here is hidden behind a workaround.
 
-## 1. The target site blocks named AI crawlers
+## 1. The target site restricts named AI crawlers
 
-**What happens.** `robots.txt` for Standard Ebooks disallows `/` for a block of
-named AI user agents. This project sets its own honest `User-Agent` and stays
-inside the path rules and the one-request-per-second budget, but the published
-preference is against automated reading by AI crawlers. See
-`docs/TARGET_SELECTION.md`.
+**What happens.** `robots.txt` for Standard Ebooks disallows `/honeypot` for
+everyone, and bars a named group of SEO and AI agents — including `chatgpt-user`,
+`claude-user`, `claude-web`, `MistralAI-User` and `Perplexity-User` — from
+`/ebooks/*/text*` and `/ebooks/*/downloads/*`. It does not bar them from the
+catalogue pages this bridge reads, and no agent in the file carries a blanket
+`Disallow: /`. This project sets its own honest `User-Agent`, never requests the
+restricted paths, and stays inside the one-request-per-second budget. See
+`docs/TARGET_SELECTION.md` and `docs/RECON.md`.
 
-**Why it is shipped anyway.** The brief asks for a responsible scraper of a
-site that offers no public API. This implementation is what responsible looks
-like in practice: it identifies itself, rate-limits itself, caches for five
-minutes, detects blocks and reports them instead of working around them, and
-can be switched off with `SE_BRIDGE_BASE_URL` plus a kill switch.
+**Why it is shipped anyway.** The brief asks for a responsible reader of a site
+that offers no public API, and the site's own machine-readable rules permit the
+paths this project uses. This implementation is what responsible looks like in
+practice: it identifies itself, rate-limits itself, caches for five minutes,
+detects blocks and reports them instead of working around them, and can be
+switched off with `SE_BRIDGE_BASE_URL` plus a kill switch.
 
 **The proper fix.** Ask. Standard Ebooks publishes a contact address and runs a
 feed interface for exactly this kind of client. A real deployment should either

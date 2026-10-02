@@ -67,10 +67,10 @@ tests/test_api.py::test_root_points_at_the_docs
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-124 passed, 14 skipped, 1 warning in 0.38s
+126 passed, 14 skipped, 1 warning in 0.38s
 ```
 
-**Expected: `124 passed, 14 skipped`.** The 14 skips are the live tests, which
+**Expected: `126 passed, 14 skipped`.** The 14 skips are the live tests, which
 are opt-in. This level touches no network at all — the upstream client is
 replaced by a scripted transport, a fake clock and a recording sleeper, so it
 finishes in under half a second and never depends on the site being up.
@@ -81,7 +81,7 @@ What the four files cover:
 | --- | --- | --- |
 | `tests/test_parsers.py` | 28 | Every parser against the 12 recorded pages in `tests/fixtures/` |
 | `tests/test_politeness.py` | 31 | Cache, rate limiter, retries, `Retry-After`, circuit breaker, block detection |
-| `tests/test_api.py` | 65 | The envelope, the five error codes, validation, routing |
+| `tests/test_api.py` | 67 | The envelope, the five error codes, validation, routing |
 | `tests/test_live.py` | 14 | The real site; skipped unless you pass `--live` |
 
 The one warning comes from Starlette's test client and is not a failure.
@@ -96,10 +96,10 @@ make test-live
 
 ```
 $ make test-live
-138 passed, 1 warning in 10.75s
+140 passed, 1 warning in 11.13s
 ```
 
-**Expected: `138 passed`.** These 14 extra tests hit `standardebooks.org`
+**Expected: `140 passed`.** These 14 extra tests hit `standardebooks.org`
 through the real polite client — no mocks — so they prove the selectors still
 match the live site. If one fails, the site changed rather than your code.
 
@@ -331,7 +331,7 @@ are skipped.
 
 ```bash
 make setup
-make test          # 124 passed, 14 skipped, no network
+make test          # 126 passed, 14 skipped, no network
 make lint          # ruff and mypy clean
 make run           # terminal 1
 make smoke         # terminal 2 — 70 checks run, 70 passed, 0 failed

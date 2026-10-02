@@ -6,7 +6,7 @@ only one that changes. Nothing else in the project imports a literal URL.
 
 from __future__ import annotations
 
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 from app.config import Settings
 
@@ -98,8 +98,12 @@ def catalog_url(
 ) -> str:
     """Absolute URL of a catalogue listing page.
 
-    ``subject`` maps onto the catalogue's ``tags[]`` filter and ``query`` onto
-    its free-text box; both are optional and combine freely upstream.
+    A subject filter selects the ``/subjects/{slug}`` path rather than adding a
+    parameter, because that is where the site actually serves those results: the
+    filter form submits ``tags[]``, but the server answers that request with a
+    302 to the subject path, so asking for the path directly saves a round trip.
+    ``query`` maps onto the catalogue's free-text box. Both are optional and
+    combine freely upstream.
     """
     params: list[tuple[str, str]] = [
         (PARAM_VIEW, VIEW_LIST),
@@ -108,11 +112,12 @@ def catalog_url(
     ]
     if sort and sort != SORT_NEWEST:
         params.append((PARAM_SORT, upstream_sort(sort, searching=bool(query))))
-    if subject and subject != SUBJECT_ALL:
-        params.append((PARAM_TAGS, subject))
     if query:
         params.append((PARAM_QUERY, query))
-    return f"{base_url(settings)}{CATALOG_PATH}?{urlencode(params)}"
+    path = CATALOG_PATH
+    if subject and subject != SUBJECT_ALL:
+        path = f"{SUBJECT_PATH.format(subject_slug=quote(subject, safe=''))}"
+    return f"{base_url(settings)}{path}?{urlencode(params)}"
 
 
 def author_url(settings: Settings, author_slug: str) -> str:
@@ -133,8 +138,3 @@ def ebook_url(settings: Settings, ebook_id: str) -> str:
     ``thomas-a-kempis/the-imitation-of-christ/william-benham``.
     """
     return f"{base_url(settings)}{EBOOK_PATH.format(ebook_id=ebook_id)}"
-
-
-def subject_url(settings: Settings, subject_slug: str) -> str:
-    """Absolute URL of one subject's landing page."""
-    return f"{base_url(settings)}{SUBJECT_PATH.format(subject_slug=subject_slug)}"

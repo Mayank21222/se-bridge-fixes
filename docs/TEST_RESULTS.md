@@ -14,16 +14,17 @@ Python 3.12.14 · pytest 8.4.2 · platform darwin · macOS
 Complete output:
 
 ```
-$ .venv/bin/pytest
-.................................................................sssssss [ 52%]
-sssssss...........................................................       [100%]
+$ make test
+.venv/bin/pytest
+...................................................................sssss [ 51%]
+sssssssss...........................................................     [100%]
 =============================== warnings summary ===============================
 tests/test_api.py::test_root_points_at_the_docs
   /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-124 passed, 14 skipped, 1 warning in 0.41s
+126 passed, 14 skipped, 1 warning in 0.38s
 ```
 
 The 14 skips are the live tests, which are opt-in. **No network access at all.**
@@ -32,7 +33,7 @@ The 14 skips are the live tests, which are opt-in. **No network access at all.**
 | --- | --- | --- |
 | `tests/test_parsers.py` | 28 | Every parser against the 12 recorded fixtures |
 | `tests/test_politeness.py` | 31 | Cache, rate limit, retries, breaker, block detection |
-| `tests/test_api.py` | 65 | Envelope, error vocabulary, validation, routing |
+| `tests/test_api.py` | 67 | Envelope, error vocabulary, validation, routing |
 | `tests/test_live.py` | 14 | Real site, skipped without `--live` |
 
 ## Live suite — `make test-live`
@@ -40,79 +41,80 @@ The 14 skips are the live tests, which are opt-in. **No network access at all.**
 Complete output:
 
 ```
-$ .venv/bin/pytest --live
-........................................................................ [ 52%]
-..................................................................       [100%]
+$ make test-live
+.venv/bin/pytest --live
+........................................................................ [ 51%]
+....................................................................     [100%]
 =============================== warnings summary ===============================
 tests/test_api.py::test_root_points_at_the_docs
   /Users/mayankkashyap/Desktop/FDE_Razorpay/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-138 passed, 1 warning in 10.71s
+140 passed, 1 warning in 11.13s
 ```
 
 All 14 live tests passed against `standardebooks.org`. At one request per second,
-10.71 seconds is the rate limiter working, not slowness.
+11.13 seconds is the rate limiter working, not slowness.
 
 ## Smoke test — `make smoke`
 
 Against a real `uvicorn` on `http://127.0.0.1:8000`. Complete output:
 
 ```
-$ .venv/bin/python scripts/smoke_test.py
+$ make smoke
 
 Smoke test against http://127.0.0.1:8000
 
 service
-  PASS  GET / returns a pointer to the docs (27ms) HTTP 200
+  PASS  GET / returns a pointer to the docs (32ms) HTTP 200
   PASS  root advertises docs, openapi and health (0ms)
-  PASS  openapi.json is served (16ms) HTTP 200
+  PASS  openapi.json is served (17ms) HTTP 200
   PASS  openapi documents all six endpoints (0ms) 6 paths
 
 health
-  PASS  GET /health answers 200 (1025ms) HTTP 200
+  PASS  GET /health answers 200 (1182ms) HTTP 200
   PASS  upstream is reachable (0ms) breaker=closed
   PASS  the health probe went through the same limiter as traffic (0ms)
 
 catalogue listing
-  PASS  GET /v1/ebooks returns a non-empty first page (259ms) HTTP 200
+  PASS  GET /v1/ebooks returns a non-empty first page (269ms) HTTP 200
   PASS  first page has items (0ms) 12 items
   PASS  meta.total is null, not invented (0ms)
   PASS  meta.source_url points at the real site (0ms)
   PASS  each row has id, title, author and source_url (0ms) dorothy-m-richardson/oberland
-  PASS  GET /v1/ebooks?page=2 returns page two (1024ms) HTTP 200
+  PASS  GET /v1/ebooks?page=2 returns page two (1000ms) HTTP 200
   PASS  page two holds different books than page one (0ms) 12 items
   PASS  page metadata follows the request (0ms)
 
 cache
-  PASS  a repeated request is served from cache (5ms)
+  PASS  a repeated request is served from cache (2ms)
 
 search
-  PASS  GET /v1/search?q=shakespeare returns hits (971ms) HTTP 200
+  PASS  GET /v1/search?q=shakespeare returns hits (990ms) HTTP 200
   PASS  search found books (0ms) 12 hits
   PASS  hits include the obvious author (0ms)
-  PASS  a search with no matches is a 200 with no rows (985ms) HTTP 200
+  PASS  a search with no matches is a 200 with no rows (989ms) HTTP 200
   PASS  no-match search returns an empty list (0ms)
-  PASS  special characters in q are handled (1005ms) HTTP 200
-  PASS  a non-ASCII query is handled (1026ms) HTTP 200
-  PASS  a blank q is rejected (2ms) HTTP 400
+  PASS  special characters in q are handled (1016ms) HTTP 200
+  PASS  a non-ASCII query is handled (998ms) HTTP 200
+  PASS  a blank q is rejected (1ms) HTTP 400
   PASS  blank q uses the error envelope (0ms)
 
 filters and facets
-  PASS  subject filter applies (1329ms) HTTP 200
+  PASS  subject filter applies (1029ms) HTTP 200
   PASS  every row carries the requested subject (0ms) 12 items
-  PASS  sort is passed through (748ms) HTTP 200
-  PASS  an unknown subject returns an empty page (1194ms) HTTP 200
+  PASS  sort is passed through (1101ms) HTTP 200
+  PASS  an unknown subject returns an empty page (885ms) HTTP 200
   PASS  unknown subject is an empty 200, not an error (0ms)
-  PASS  subject facets are listed (8ms) HTTP 200
+  PASS  subject facets are listed (7ms) HTTP 200
   PASS  facets include the well-known subjects (0ms) 19 subjects
 
 records
-  PASS  GET /v1/ebooks/dorothy-m-richardson/oberland returns a record (726ms) HTTP 200
+  PASS  GET /v1/ebooks/dorothy-m-richardson/oberland returns a record (1006ms) HTTP 200
   PASS  record has a source_url on the real site (0ms)
   PASS  record exposes download formats or online reading (0ms) 5 formats
-  PASS  an unknown record is 404 (989ms) HTTP 404
+  PASS  an unknown record is 404 (983ms) HTTP 404
   PASS  404 uses the error envelope (0ms)
   PASS  malformed id 'Author/Title' is 400 (2ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
@@ -122,15 +124,15 @@ records
   PASS  malformed id uses the error envelope (0ms)
   PASS  malformed id '..%2f..%2fetc' is 400 (1ms) HTTP 400
   PASS  malformed id uses the error envelope (0ms)
-  PASS  GET /v1/authors/dorothy-m-richardson lists their books (1038ms) HTTP 200
+  PASS  GET /v1/authors/dorothy-m-richardson lists their books (1082ms) HTTP 200
   PASS  author total is a real count (0ms) 13 books
 
 input validation
   PASS  page=0 is rejected (2ms) HTTP 400
   PASS  page=0 uses the error envelope (0ms)
-  PASS  page=-1 is rejected (2ms) HTTP 400
+  PASS  page=-1 is rejected (1ms) HTTP 400
   PASS  page=-1 uses the error envelope (0ms)
-  PASS  page_size=0 is rejected (2ms) HTTP 400
+  PASS  page_size=0 is rejected (1ms) HTTP 400
   PASS  page_size=0 uses the error envelope (0ms)
   PASS  page_size=49 is rejected (1ms) HTTP 400
   PASS  page_size=49 uses the error envelope (0ms)
@@ -154,7 +156,6 @@ politeness
 
 ------------------------------------------------------------
 70 checks run, 70 passed, 0 failed
-exit=0
 ```
 
 70 live checks over real HTTP: the envelope, both pages differing, cache hits,
@@ -202,6 +203,8 @@ sitting in a URL path, while still catching a real address such as
 | Pagination metadata consistent | `test_meta_reports_page_size_and_an_honest_null_total`, smoke | pass |
 | Invalid page / page_size | `test_bad_page_is_rejected`, `test_page_size_above_the_ceiling_is_rejected` | pass |
 | No-match filter → 200 empty | `test_empty_result_is_a_200_with_no_rows`, `test_live_subject_filter_returns_only_that_subject` | pass |
+| Subject filter → subject path | `test_subject_filter_selects_the_subject_path`, `test_subject_url_builder_escapes_a_segment_defensively` | pass |
+| Traversing subject slug → 400, no request | `test_a_traversing_subject_slug_is_rejected_before_any_request` | pass |
 | Detail has `source_url` | `test_detail_returns_the_full_record`, smoke | pass |
 | Unknown id → 404 | `test_unknown_ebook_is_not_found`, `test_live_unknown_ebook_is_not_found` | pass |
 | Malformed id → 400 | `test_malformed_ids_are_rejected_without_calling_upstream` (9 cases) | pass |
@@ -285,6 +288,22 @@ Worth recording, because they are the argument for writing them:
    `UPSTREAM_CHANGED` had nothing pointing at the parser to fix. The log
    line now names the selector, found while writing the test the brief asks
    for.
+7. **The documentation misreported what `robots.txt` says.** Four documents
+   claimed it disallowed `/` for a block of AI crawler user agents. Re-fetched
+   on 2026-10-02, the file does no such thing: `GPTBot` is not mentioned, no
+   agent carries a bare `Disallow: /`, and the named agents are restricted only
+   from `/ebooks/*/text*` and `/ebooks/*/downloads/*` — which this bridge never
+   requests. The error ran in the direction of inventing a prohibition that
+   made the project look stricter than it is, in the one section of the
+   submission whose job is to be trustworthy about permission. All four files
+   corrected against the live file.
+8. **A subject filter spent a redirect.** The docs and the code believed
+   `GET /ebooks?...&tags[]={slug}` returned the filtered listing directly. It
+   returns 302 to `/subjects/{slug}`, which is also what the site's own links
+   point at. Every subject-filtered page was paying an extra round trip, and a
+   test was asserting the wrong URL to keep it that way. The bridge now requests
+   the canonical path, the slug is escaped into one path segment, and the test
+   asserts the structure rather than the string.
 
 ## Known gaps
 

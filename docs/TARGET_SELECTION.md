@@ -28,8 +28,9 @@ to the CC0. Every book has a page with a description, subjects, contributors,
 download formats and provenance links; the whole catalogue is browsable and
 searchable through ordinary query parameters.
 
-- `robots.txt` allows `/` for `User-agent: *` and disallows only `/honeypot`,
-  plus a block of AI-scraper user agents.
+- `robots.txt` disallows only `/honeypot` for `User-agent: *`. A named block of
+  SEO and AI-crawler agents is restricted from full text and file downloads;
+  the catalogue pages this bridge reads are not restricted for any agent.
 - The catalogue carries schema.org microdata on real elements, which makes the
   parse targets stable rather than incidental.
 
@@ -61,23 +62,49 @@ selected target passed gate 5 without a compromise.
 [`docs/RECON.md`](RECON.md):
 
 ```
+# Badly-behaved bots
 User-agent: *
 Disallow: /honeypot
 
-User-agent: GPTBot
-Disallow: /
-... (a further block of named AI crawlers, each Disallow: /)
+# SEO crawlers
+User-agent: SemrushBot
+User-agent: DotBot
+User-agent: AhrefsBot
+User-agent: SEOkicks
+User-agent: DataForSeoBot
+User-agent: proximic
+User-agent: chatgpt-user
+User-agent: claude-user
+User-agent: claude-web
+User-agent: MistralAI-User
+User-agent: Perplexity-User
+
+Disallow: /ebooks/*/downloads/*
+Disallow: /ebooks/*/text*
 ```
 
 For `User-agent: *`, every path this bridge requests — `/ebooks`, `/ebooks/{id}`,
 `/ebooks?view=list`, `/ebooks/{author}` — is allowed. `/honeypot` is disallowed
-and is never requested. Note the asymmetry the file itself encodes: named AI
-crawlers are asked not to scrape at all, while the general rule permits the
-catalogue paths. This project is an automated client built for exactly the purpose
-those named agents represent, and it treats the site operator's preference as
-binding on intent even where the path rule permits it — hence the identification,
-the one-request-per-second ceiling, the cache, and the decision not to disguise
-the client.
+and is never requested.
+
+The named block is narrower than it first appears, and the narrowing is in this
+project's favour. Those eleven agents are barred from full text and from file
+downloads, not from the catalogue. This bridge requests neither, so it complies
+with the named-agent rules whichever agent it identifies as. No agent in the file
+carries a bare `Disallow: /`, and `GPTBot` is not mentioned.
+
+An earlier draft of this document claimed those agents were each disallowed from
+the whole site with `Disallow: /`. That was not true of the live file, and the
+error ran in the direction of inventing a prohibition that made the project's
+ethical position look stricter than it is. It is corrected here because the
+permission basis is the part of this submission most worth being able to trust.
+
+The stricter reading that survives the correction: even where a path rule permits
+this traffic, the site operator plainly prefers that bulk text and binaries not be
+harvested by automated agents. The bridge takes that as binding on intent — hence
+it never touches those paths, identifies itself honestly, holds one request per
+second, caches for five minutes, and can be switched off with one environment
+variable.
 
 **3. What is not claimed.** No document on the site authorises automated access in
 the way an API's terms of service would. The honest statement is that this bridge
@@ -88,16 +115,16 @@ uncertainty is a real limitation of the target choice, and it is recorded as suc
 in [`docs/LIMITATIONS_AND_LONG_TERM_FIX.md`](LIMITATIONS_AND_LONG_TERM_FIX.md)
 rather than smoothed over.
 
-### Why the AI-scrawler block did not disqualify the site
+### Why the AI-crawler rules did not disqualify the site
 
-Why the AI-scraper block matters, and why it did not disqualify the site: it
-names user agents, not paths, and asks them not to scrape. This bridge
-identifies itself honestly as an automated read-only client, stays at one
-request per second, caches aggressively, and can be turned off with a single
-environment variable. It is the kind of client the block is aimed at, and the
-project treats that as a cost of doing business, not a technical obstacle to
-route around. [`docs/LIMITATIONS.md`](LIMITATIONS.md) records the decision to
-keep it and what would change it.
+The named block covers agents of this kind — `chatgpt-user`, `claude-user`,
+`claude-web`, `MistralAI-User` — but restricts them to catalogue pages rather
+than excluding them. The exercise is explicitly to read a site that offers no API,
+and the site's own machine-readable rules permit exactly the paths this bridge
+uses. The project still identifies itself honestly as an automated read-only
+client, stays at one request per second, caches aggressively, and can be turned
+off with a single environment variable.
+[`docs/LIMITATIONS.md`](LIMITATIONS.md) records what would change that decision.
 
 ### 2. The Gazette — rejected
 

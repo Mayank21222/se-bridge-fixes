@@ -15,7 +15,7 @@ Exactly four distinct URL shapes, all GET, all on `standardebooks.org`:
 | Purpose | Request | Result |
 | --- | --- | --- |
 | Catalogue listing | `GET /ebooks?view=list&per-page={12\|24\|48}&page={n}` | 200, HTML |
-| Subject filter | `GET /ebooks?view=list&per-page=12&tags[]={slug}` | 200, HTML |
+| Subject filter | `GET /subjects/{slug}?view=list&per-page=12` | 200, HTML |
 | Free-text search | `GET /ebooks?view=list&per-page=12&query={q}&sort=relevance` | 200, HTML |
 | Detail page | `GET /ebooks/{author}/{title}[/{contributor}]` | 200, HTML |
 | Subject facets | the listing URL, reading its filter `<select>` | 200, HTML |
@@ -23,6 +23,16 @@ Exactly four distinct URL shapes, all GET, all on `standardebooks.org`:
 
 Query-parameter names, confirmed from the site's own form markup rather than
 guessed: `view=list`, `per-page`, `page`, `query`, `tags[]`, `sort`.
+
+**One redirect to record.** `tags[]` is what the filter form submits, but it is
+not what the server answers on. `GET /ebooks?...&tags[]=philosophy` returns
+**302** to `/subjects/philosophy?per-page=2&view=list`. Subject filtering is
+therefore a *path* (`/subjects/{slug}`) that the form reaches through a
+parameter, and the canonical links in the served HTML point at the path
+directly. The bridge requests `/subjects/{slug}` directly and skips the
+round trip. Both forms were fetched and compared: identical apart from a
+donation aside. An earlier draft of this file described the `tags[]` URL as
+returning 200 directly, which is wrong — it redirects.
 
 ## What was deliberately not requested
 
@@ -36,19 +46,52 @@ guessed: `view=list`, `per-page`, `page`, `query`, `tags[]`, `sort`.
 
 ## robots.txt
 
+Retrieved from `https://standardebooks.org/robots.txt` on 2026-10-02:
+
 ```
+Sitemap: https://standardebooks.org/sitemap
+
+# Badly-behaved bots
 User-agent: *
 Disallow: /honeypot
 
-User-agent: GPTBot
-Disallow: /
-... (a further block of named AI crawlers, each Disallow: /)
+# SEO crawlers
+User-agent: SemrushBot
+User-agent: DotBot
+User-agent: AhrefsBot
+User-agent: SEOkicks
+User-agent: DataForSeoBot
+User-agent: proximic
+User-agent: chatgpt-user
+User-agent: claude-user
+User-agent: claude-web
+User-agent: MistralAI-User
+User-agent: Perplexity-User
+
+Disallow: /ebooks/*/downloads/*
+Disallow: /ebooks/*/text*
 ```
 
-Only `/honeypot` is path-restricted for everyone. The project honours both the
-path rule and the spirit of the user-agent rule: one request per second, a
-five-minute cache, an identifying `User-Agent`, and no attempt to disguise the
-client.
+Reading this carefully, because the shape matters:
+
+- **For `User-agent: *`, only `/honeypot` is disallowed.** Every path this
+  bridge requests — `/ebooks`, `/ebooks/{author}`, `/ebooks/{ebook_id}` — is
+  allowed. There is no blanket crawl ban.
+- **The named block is a content restriction, not a blanket ban.** Those eleven
+  agents, which include `chatgpt-user`, `claude-user`, `claude-web`,
+  `MistralAI-User` and `Perplexity-User`, are barred from `/ebooks/*/downloads/*`
+  and `/ebooks/*/text*` — the full text and the file downloads. They are **not**
+  barred from the catalogue pages, which is precisely what this bridge reads.
+- **No agent is listed with a bare `Disallow: /`.** `GPTBot` does not appear in
+  the file at all. An earlier draft of this document claimed a block of named AI
+  crawlers each carrying `Disallow: /`; that was wrong, and it overstated the
+  restriction. It has been corrected against the live file rather than left as a
+  convenient belief.
+- **The bridge stays inside the permission on its own terms.** It never
+  requests `downloads/` or `text` paths, so it complies with the named-agent
+  rules whichever agent it identifies as. It also honours the parts that are not
+  mandatory: one request per second, a five-minute cache, an identifying
+  `User-Agent` with a contact, and no attempt to disguise the client.
 
 ## Endpoint findings
 
@@ -136,7 +179,7 @@ publishes one:
 | `ContributorRef.name` | `str` | no | text of the anchor |
 | `ContributorRef.role` | `str` | yes | inferred from the text before the anchor |
 | `ContributorRef.url` | `str \| null` | yes | null in listing rows |
-| `SubjectRef.name` / `.slug` | `str` | no | `href` is `/ebooks?tags[]={slug}` |
+| `SubjectRef.name` / `.slug` | `str` | no | `href` is `/subjects/{slug}` |
 
 ### Detail page — `<article>`
 

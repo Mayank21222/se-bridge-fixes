@@ -7,9 +7,10 @@ below follows from that one bet.
 
 **It breaks when the markup changes.** The parsers match specific selectors on
 `standardebooks.org`. Nothing guarantees the site keeps publishing that shape.
-**It depends on undocumented behaviour.** The `view=list`, `per-page`, `query`,
-`sort` and `tags[]` parameters are what the site's own frontend happens to send.
-They are not a contract, and the site can change or withdraw them without notice.
+**It depends on undocumented behaviour.** The `view=list`, `per-page`, `query`
+and `sort` parameters, and the `/subjects/{slug}` path, are what the site's own
+frontend happens to send and link to. They are not a contract, and the site can
+change or withdraw them without notice.
 **There is no service level agreement.** Nobody has promised this endpoint will
 exist tomorrow, will return the same shape, or will be maintained at all.
 **It covers only part of the data.** List, detail, search, subjects and authors
