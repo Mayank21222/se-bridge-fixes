@@ -274,7 +274,7 @@ make scan
 ```
 $ make scan
 .venv/bin/python scripts/secret_scan.py
-scanned 30 of 32 tracked files against 9 rules
+scanned 31 of 33 tracked files against 9 rules
 no secrets, credentials or personal e-mail addresses found
 rules checked: private key, AWS access key id, GitHub token, Slack token,
 PyPI token, generic secret assignment, credential in a URL, opds membership

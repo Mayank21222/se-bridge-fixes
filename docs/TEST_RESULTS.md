@@ -173,9 +173,11 @@ Success: no issues found in 12 source files
 ## Secret scan — `make scan`
 
 ```
-scanned 30 of 32 tracked files against 9 rules
-[32mno secrets, credentials or personal e-mail addresses found[0m
-rules checked: private key, AWS access key id, GitHub token, Slack token, PyPI token, generic secret assignment, credential in a URL, opds membership credential, personal e-mail address
+scanned 31 of 33 tracked files against 9 rules
+no secrets, credentials or personal e-mail addresses found
+rules checked: private key, AWS access key id, GitHub token, Slack token,
+PyPI token, generic secret assignment, credential in a URL, opds membership
+credential, personal e-mail address
 ```
 
 Nine rules: private keys, AWS keys, GitHub/Slack/PyPI tokens, generic secret
