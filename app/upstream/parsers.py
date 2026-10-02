@@ -334,9 +334,7 @@ def parse_subject_facets(html: str, *, source_url: str) -> list[SubjectFacet]:
     one control that defines them.
     """
     tree = HTMLParser(html)
-    select = _require(
-        tree.css_first(SEL_SUBJECT_SELECT), SEL_SUBJECT_SELECT, context=source_url
-    )
+    select = _require(tree.css_first(SEL_SUBJECT_SELECT), SEL_SUBJECT_SELECT, context=source_url)
     facets: list[SubjectFacet] = []
     for option in select.css("option"):
         slug = _attr(option, "value")
