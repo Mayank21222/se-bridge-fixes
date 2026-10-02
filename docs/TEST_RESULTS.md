@@ -59,7 +59,7 @@ mypy app            → Success: no issues found in 12 source files
 ## Secret scan — `make scan`
 
 ```
-scanned 24 of 25 tracked files against 9 rules
+scanned 29 of 31 tracked files against 9 rules
 no secrets, credentials or personal e-mail addresses found
 ```
 
