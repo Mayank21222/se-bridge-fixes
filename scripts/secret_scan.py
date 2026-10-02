@@ -108,8 +108,11 @@ RULES: tuple[Rule, ...] = (
         re.compile(r"(?i)(?:username|password)\s*[:=]\s*\S+.*opds"),
     ),
     Rule(
+        # The lookbehind skips a match sitting in a URL path, where ``@`` is a
+        # filename character: the site serves covers as ``cover@2x.jpg``. A
+        # real address in prose is never preceded by a slash.
         "personal e-mail address",
-        re.compile(r"\b[\w.+-]+@[\w-]+\.[\w.-]+\b"),
+        re.compile(r"(?<![/\w.+-])[\w.+-]+@[\w-]+\.[\w.-]+\b"),
         allow=("example.invalid", "example.com", "email.invalid", "noreply.invalid"),
     ),
 )
