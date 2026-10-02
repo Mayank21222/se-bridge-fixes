@@ -109,28 +109,60 @@ both and treats anything else as drift.
 
 ### Listing rows — `<li typeof="schema:Book" about="/ebooks/...">`
 
-| Field | Selector | Notes |
-| --- | --- | --- |
-| `id` | `about` attribute | path tail after `/ebooks`, one to three segments |
-| `title` | `h3 span[property="schema:name"]` | |
-| `authors` | `p.author a` | list view; grid view uses `property="schema:author"` |
-| `contributors` | `p:not(.author) a` | role is inferred from the preceding text |
-| `subjects` | `li.property > span[property="schema:keywords"] a` | |
-| `word_count` | `div.details` text | parsed from prose |
-| `reading_ease` | `div.details` text | score printed before the words in list view, after in grid view |
-| `cover_url` | `img[property="schema:image"]`, `src` | resolved absolute |
-| `source_url` | `about` attribute | resolved absolute |
+Types are the ones the API actually returns. "Can be missing" means the site
+legitimately omits it, in which case the field is `null` and never a guess.
+
+| Field | Type | Can be missing | Selector | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | `str` | no | `about` attribute | path tail after `/ebooks`, one to three segments |
+| `title` | `str` | no | `h3 span[property="schema:name"]` | required; absence is drift |
+| `authors` | `list[AuthorRef]` | no, but may be empty | `p.author a` | list view; grid view uses `property="schema:author"` |
+| `contributors` | `list[ContributorRef]` | yes, usually empty | `p:not(.author) a` | role is inferred from the preceding text |
+| `subjects` | `list[SubjectRef]` | yes, usually empty | `li.property > span[property="schema:keywords"] a` | absent in grid mode |
+| `word_count` | `int \| null` | yes | `div.details` text | parsed from prose; absent in grid mode |
+| `reading_ease` | `float \| null` | yes | `div.details` text | score before the word count in list view, after in grid view |
+| `cover_url` | `str \| null` | yes | `img[property="schema:image"]`, `src` | resolved absolute |
+| `source_url` | `str` | no | `about` attribute | resolved absolute; always present so any record is traceable |
+
+Nested reference objects, each carrying its own `source_url` where the site
+publishes one:
+
+| Field | Type | Can be missing | Notes |
+| --- | --- | --- | --- |
+| `AuthorRef.name` | `str` | no | text of the anchor |
+| `AuthorRef.slug` | `str` | no | anchor `href` tail |
+| `AuthorRef.url` | `str \| null` | yes | null in listing rows, absolute URL on detail pages |
+| `AuthorRef.same_as` | `list[str]` | yes, usually empty | authority footnotes, detail pages only |
+| `ContributorRef.name` | `str` | no | text of the anchor |
+| `ContributorRef.role` | `str` | yes | inferred from the text before the anchor |
+| `ContributorRef.url` | `str \| null` | yes | null in listing rows |
+| `SubjectRef.name` / `.slug` | `str` | no | `href` is `/ebooks?tags[]={slug}` |
 
 ### Detail page — `<article>`
 
-Beyond the listing fields, a detail page yields `abstract`, `description`,
-`reading_time_minutes`, `difficulty`, `collections`, `language`, `license`,
-`published_at`, `updated_at`, `formats[]`, `read_online_url`, `sources[]` and
-`source_repository_url`. Author `same_as` links come from the authority
-footnotes (Library of Congress, Wikipedia).
+Carries every listing field above plus these. All are nullable, because a
+minimal edition may legitimately omit any of them.
 
-Prose fields are read from the two paragraphs the site marks
-`property="schema:description"` and `property="schema:abstract"`.
+| Field | Type | Can be missing | Where it comes from |
+| --- | --- | --- | --- |
+| `abstract` | `str \| null` | yes | paragraph marked `property="schema:abstract"` |
+| `description` | `str \| null` | yes | paragraph marked `property="schema:description"` |
+| `reading_time_minutes` | `int \| null` | yes | prose in the details block, digit- and unit-matched |
+| `difficulty` | `str \| null` | yes | prose in the details block, e.g. "Easy" |
+| `collections` | `list[CollectionRef]` | yes | series links outside the keywords property; `CollectionRef` is `name`, `slug` |
+| `language` | `str \| null` | yes | details prose |
+| `license` | `str \| null` | yes | the copyright statement on the page |
+| `published_at` | `str \| null` | yes | details prose, normalised to ISO 8601 date |
+| `updated_at` | `str \| null` | yes | details prose, normalised to ISO 8601 date |
+| `formats` | `list[FormatRef]` | yes | download table rows; `FormatRef` is `label`, `mime_type` (nullable), `url` |
+| `read_online_url` | `str \| null` | yes | the "Read online" link; absent when the site offers none |
+| `sources` | `list[SourceRef]` | yes | provenance links in the footer section; `SourceRef` is `label`, `url` |
+| `source_repository_url` | `str \| null` | yes | the GitHub repository link for the transcription |
+
+Author `same_as` links come from the authority footnotes (Library of Congress,
+Wikipedia). Prose fields are read from the two paragraphs the site marks
+`property="schema:description"` and `property="schema:abstract"`, whitespace
+normalised in every case.
 
 ## Fixtures
 
