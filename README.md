@@ -3,6 +3,10 @@
 A read-only JSON API over the public [Standard Ebooks](https://standardebooks.org)
 catalogue, which publishes no queryable API of its own.
 
+**Use case.** An AI agent could call these endpoints to answer "what public-domain
+books does Standard Ebooks have on this subject, by this author, and what does
+the catalogue say about them?" without scraping HTML.
+
 - **Six endpoints** — browse, search, one record, an author's works, subject
   facets, and health.
 - **One upstream request per second**, a five-minute cache, and a circuit
@@ -21,11 +25,18 @@ in [`docs/TARGET_SELECTION.md`](docs/TARGET_SELECTION.md).
 ## Quick start
 
 ```bash
-make setup     # create .venv (Python 3.11+) and install runtime + dev deps
-make run       # serve on http://127.0.0.1:8000
+cp .env.example .env          # optional: every setting has a working default
+make setup                    # create .venv (Python 3.11+) and install deps
+make run                      # serve on http://127.0.0.1:8000
 ```
 
 In another terminal:
+
+```bash
+make smoke                    # 70 checks against the running server
+```
+
+Or call it directly:
 
 ```bash
 curl -s http://127.0.0.1:8000/health | python3 -m json.tool
@@ -40,9 +51,6 @@ Without `make`, or with different tools:
 python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
 .venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
-
-No configuration is required. Every setting has a working default; copy
-`.env.example` to `.env` to change any of them.
 
 ## All targets
 
@@ -183,6 +191,22 @@ curl -s "http://127.0.0.1:8000/v1/authors/dorothy-m-richardson"
 
 ## How it works
 
+```mermaid
+flowchart TD
+    client["AI agent / curl client"] --> api["app/main.py<br/>routes, response envelope, error mapping"]
+    api --> svc["app/services/catalog.py<br/>which upstream URL answers this request"]
+    svc --> val["app/services/validation.py<br/>every caller mistake rejected here"]
+    val --> polite["app/upstream/client.py<br/>cache, circuit breaker, rate limit, retry"]
+    polite --> endpoints["app/upstream/endpoints.py<br/>URL construction"]
+    endpoints --> site["standardebooks.org"]
+    site --> parsers["app/upstream/parsers.py<br/>pure HTML to records, raising on drift"]
+    parsers --> api
+    api --> client
+```
+
+The client through the API and the politeness layer to the upstream parser and
+the target site, and the response back:
+
 ```
 caller
   │
@@ -262,6 +286,102 @@ patron names and is not needed for anything here.
 
 ---
 
+## Ethics and compliance
+
+The bridge reads public pages the way a slow, well-behaved visitor would, and it
+stops where that stops. Specifically:
+
+- **Only public content.** No login, no session cookies, no paywalled or
+  members-only pages, and no OPDS feed that needs credentials.
+- **No private or personal data.** Fixtures hold catalogue metadata only.
+  `/about`, which lists real patron names, is never requested.
+- **robots.txt is honoured.** Disallowed paths are not fetched, including the
+  `/honeypot` path that bans the requesting IP.
+- **A block is reported, never circumvented.** A 403 or a CAPTCHA page becomes
+  `UPSTREAM_BLOCKED`. There is no proxy rotation, no header spoofing, no
+  challenge solving and no open proxy surface. When the site's `robots.txt`
+  disallows named AI crawlers, this service identifies itself honestly and accepts
+  that the operator may block it.
+- **Slow by default.** One request per second, a five-minute cache, backoff with
+  jitter on 429 and 5xx, `Retry-After` honoured, and a circuit breaker that stops
+  calling after repeated failures.
+- **No copies, no writes.** Nothing is stored to disk, no catalogue mirror is
+  built, and every response record carries its `source_url` so a caller can trace
+  any fact back to the public page it came from.
+- **No credentials anywhere.** There is no credential setting because there is
+  nothing to authenticate to, and `make scan` fails the build on secrets,
+  tokens or personal e-mail patterns.
+
+Reading public pages is not the same as being authorised to republish them.
+Anyone running this service carries that risk themselves; the honest long-term
+answer is an official API, not a better crawler. See
+[`docs/LIMITATIONS_AND_LONG_TERM_FIX.md`](docs/LIMITATIONS_AND_LONG_TERM_FIX.md).
+
+---
+
+## Assumptions
+
+Made where the site was ambiguous, all cheap to reverse:
+
+| Assumption | Why | If wrong |
+| --- | --- | --- |
+| `view=list` renders the fields this API returns | It is the denser layout; `view=grid` omits some | Switch `upstream/endpoints.py`; parsers already handle both |
+| `per-page` accepts 12, 24 and 48 | Only these are offered by the site's own control | Extend the validation allowlist |
+| `tags[]` holds subject slugs | Values match the subject facet slugs exactly | Prefix mapping in `endpoints.py` |
+| An ebook id is one to three path segments | Detail URLs are `/ebooks/{author}/{title}[/{contributor}]` | Tighten the validator |
+| Public sort vocabulary is `newest`, `author-alpha`, `reading-ease`, `length`, `popularity` | Taken from the site's own sort control | Update the mapping table |
+| A missing optional field returns `null` | The site omits it, and inventing text would be a lie | — |
+| Subject facets come from the listing page's `<select>` | That is where the site puts them | Fetch a facet page instead |
+
+Deliberate scope decisions, recorded here because they look like gaps:
+search is substring matching as the site implements it, not a ranking function;
+`meta.total` is `null` for listings because the site publishes no count and the
+bridge will not invent one; author pages always render grid mode, so they carry
+no subjects or word counts.
+
+---
+
+## Project layout
+
+```
+.
+├── app/
+│   ├── main.py             FastAPI app, routes, envelope, error handlers
+│   ├── models.py           Pydantic schemas and the error model
+│   ├── config.py           Environment settings, validated at start-up
+│   ├── errors.py           The five error codes and their exceptions
+│   ├── services/
+│   │   ├── catalog.py      Orchestration: URL selection, upstream-error mapping
+│   │   └── validation.py   Page, sort, slug, id and query rules
+│   └── upstream/           All site-specific logic lives here
+│       ├── client.py       The only code that opens a socket
+│       ├── parsers.py      Pure HTML → records, raising on drift
+│       └── endpoints.py    Every upstream URL and parameter name
+├── docs/
+│   ├── TARGET_SELECTION.md        Why this site, and why not the others
+│   ├── RECON.md                   Requests, endpoints, HTML mapping
+│   ├── AGENT_USAGE.md             Per-endpoint tool reference
+│   ├── LIMITATIONS_AND_LONG_TERM_FIX.md  The note: costs and the real fix
+│   ├── LIMITATIONS.md             Implementation-level caveats
+│   ├── TEST_RESULTS.md            Real test output and the scenario matrix
+│   └── openapi.json               Exported OpenAPI 3.1
+├── scripts/
+│   ├── smoke_test.py      70 checks over HTTP against a running server
+│   └── secret_scan.py     Fails on secrets and personal-data patterns
+├── tests/
+│   ├── fixtures/          12 recorded pages, trimmed, provenance documented
+│   ├── test_parsers.py    Offline, against fixtures
+│   ├── test_api.py        FastAPI with the upstream mocked
+│   ├── test_politeness.py Fake clocks and scripted transports
+│   └── test_live.py       Opt-in, skipped unless --live
+├── .env.example           Every setting, placeholders only
+├── Makefile               setup, run, test, smoke, lint, openapi, scan
+├── pyproject.toml         Dependencies and tool configuration
+└── prompt.md              The brief this project was built against
+```
+
+---
+
 ## Testing
 
 ```bash
@@ -310,7 +430,8 @@ There is **no** credential setting, because there is nothing to authenticate to.
 | [`docs/TARGET_SELECTION.md`](docs/TARGET_SELECTION.md) | The five gates, the shortlist, why each rejection |
 | [`docs/RECON.md`](docs/RECON.md) | Exact requests made, endpoints tried, HTML mapping |
 | [`docs/AGENT_USAGE.md`](docs/AGENT_USAGE.md) | How an agent should call this, and what not to do |
-| [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) | 12 known limits and the proper fix for each |
+| [`docs/LIMITATIONS_AND_LONG_TERM_FIX.md`](docs/LIMITATIONS_AND_LONG_TERM_FIX.md) | The note: what this approach costs and the real fix |
+| [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) | 12 implementation-level limits and the proper fix for each |
 | [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) | Test evidence and the required-scenario matrix |
 | [`docs/openapi.json`](docs/openapi.json) | Exported OpenAPI 3.1 document |
 
