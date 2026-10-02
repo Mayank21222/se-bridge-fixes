@@ -166,7 +166,7 @@ every check passes; this run exited 0.
 
 ```
 All checks passed!
-28 files already formatted
+29 files already formatted
 Success: no issues found in 12 source files
 ```
 

@@ -38,7 +38,7 @@ $ make lint
 .venv/bin/ruff check .
 All checks passed!
 .venv/bin/ruff format --check .
-28 files already formatted
+29 files already formatted
 .venv/bin/python -m mypy app
 Success: no issues found in 12 source files
 ```
