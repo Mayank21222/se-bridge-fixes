@@ -12,7 +12,7 @@ import logging
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     max_attempts: int = Field(default=3, ge=1, le=10)
     backoff_base_seconds: float = Field(default=1.0, ge=0)
     backoff_max_seconds: float = Field(default=30.0, ge=0)
+    max_retry_after_seconds: float = Field(
+        default=300.0,
+        gt=0,
+        description=(
+            "Longest Retry-After this client will sit out. Beyond it the request "
+            "fails with RATE_LIMITED rather than sleeping or retrying early."
+        ),
+    )
 
     # --- Circuit breaker ---------------------------------------------------
     circuit_failure_threshold: int = Field(default=5, ge=1)
@@ -69,6 +77,22 @@ class Settings(BaseSettings):
             raise ValueError(f"SE_BRIDGE_LOG_LEVEL must be a standard level, got {value!r}")
         return level
 
+    @model_validator(mode="after")
+    def _default_page_size_must_be_requestable(self) -> Settings:
+        """Reject a default page size the API would then reject as too large.
+
+        Without this, ``SE_BRIDGE_DEFAULT_PAGE_SIZE=100`` starts cleanly and then
+        answers every unparameterised request with ``400``, because the ceiling
+        is applied twice: once by the query-parameter bound and once by
+        :meth:`page_size_ceiling`.
+        """
+        if self.default_page_size > self.max_page_size:
+            raise ValueError(
+                f"SE_BRIDGE_DEFAULT_PAGE_SIZE ({self.default_page_size}) cannot exceed "
+                f"SE_BRIDGE_MAX_PAGE_SIZE ({self.max_page_size})"
+            )
+        return self
+
     @property
     def min_request_interval_seconds(self) -> float:
         """Minimum wall-clock gap between two outbound upstream requests."""
@@ -93,3 +117,8 @@ def configure_logging(level: str | None = None) -> None:
         format="%(asctime)s %(levelname)-7s %(name)s %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S%z",
     )
+
+
+def reset_settings() -> None:
+    """Clear cached settings (useful for tests)."""
+    get_settings.cache_clear()

@@ -206,29 +206,146 @@ def _parse_authors(item: Node, base_url: str, *, detailed: bool) -> list[AuthorR
     return authors
 
 
+_CONTRIBUTOR_ROLES = (
+    "translator",
+    "editor",
+    "illustrator",
+    "narrator",
+    "contributor",
+    "annotator",
+)
+
+# Rendered back into the wording the site prints next to the name, so a role read
+# from microdata and one read from the prose credit line are indistinguishable to
+# a caller. The public field is "the credit as printed", and the site prints
+# "Translated by X", not "Translator: X".
+_CONTRIBUTOR_LABELS = {
+    "translator": "Translated by",
+    "editor": "Edited by",
+    "illustrator": "Illustrated by",
+    "narrator": "Narrated by",
+    "contributor": "Contributed by",
+    "annotator": "Annotated by",
+}
+
+
+_CONTRIBUTOR_ROLE_PREFIXES = (
+    "translated by",
+    "edited by",
+    "illustrated by",
+    "narrated by",
+    "contributed by",
+    "annotated by",
+    "compiled by",
+    "adapted by",
+    "introduced by",
+    "selected by",
+    "translated and edited by",
+    "translated & edited by",
+)
+
+
+def _clean_role(text: str | None) -> str:
+    """Reduce a credit line to the bare role prefix as printed, e.g.
+    ``"Translated by A and B."`` → ``"Translated by"``.
+    """
+    norm = normalise_whitespace(text)
+    if not norm:
+        return ""
+    collapsed = norm.rstrip(".")
+    lower = collapsed.lower()
+    for prefix in sorted(_CONTRIBUTOR_ROLE_PREFIXES, key=len, reverse=True):
+        if lower.startswith(prefix):
+            return collapsed[: len(prefix)].strip()
+    for role in sorted(_CONTRIBUTOR_ROLES, key=len, reverse=True):
+        for suffix in (f"{role} by", role):
+            head = f"{suffix} "
+            if lower.startswith(head):
+                label = _CONTRIBUTOR_LABELS.get(role)
+                if label:
+                    return label
+                return collapsed[: len(head)].strip()
+    return collapsed.removesuffix(" by").strip()
+
+
 def _parse_contributors(scope: Node) -> list[ContributorRef]:
     """Read ``<p>Translated by <a …></p>``-style credits inside ``scope``.
 
-    Only paragraphs whose single link is off-site are treated as credits, so
-    the "№ 3 in the X set" and "Part of the Y set" lines are not misread.
+    A single credit line routinely names several people:
+    ``Translated by <a>George Woodward</a> and <a>Harold Mattingly</a>``. Every
+    off-site anchor is therefore a contributor in its own right, and the role is
+    taken from the line's leading words rather than from what is left after
+    subtracting one name - otherwise the second name is spliced into the role and
+    silently dropped from the contributor list.
+
+    Only lines whose links are all off-site are treated as credits, so the
+    "№ 3 in the X set" and "Part of the Y set" lines are not misread.
     """
     contributors: list[ContributorRef] = []
+    seen: set[tuple[str, str]] = set()
     for paragraph in scope.css("p"):
-        link = paragraph.css_first("a")
-        if link is None:
+        links = [
+            anchor
+            for anchor in paragraph.css("a")
+            if (_attr(anchor, "href") or "").startswith("http")
+        ]
+        if not links:
             continue
-        href = _attr(link, "href") or ""
-        if not href.startswith("http"):
+        role = _clean_role(node_text(paragraph, separator=" ") or "")
+        for link in links:
+            name = node_text(link)
+            href = _attr(link, "href") or ""
+            if not name:
+                continue
+            key = (role, name)
+            if key in seen:
+                continue
+            seen.add(key)
+            contributors.append(
+                ContributorRef(role=role or "Contributor", name=name, url=_absolute("", href))
+            )
+    return contributors
+
+
+def _parse_contributor_microdata(article: Node, base_url: str) -> list[ContributorRef]:
+    """Read contributors from the detail page's ``schema.org`` microdata.
+
+    Detail pages publish each contributor as its own microdata node, for example::
+
+        <div property="schema:translator" typeof="schema:Person"
+             resource="/contributors/william-benham">
+          <meta property="schema:name" content="William Benham"/>
+          <meta property="schema:sameAs" content="https://…"/>
+        </div>
+
+    That is the site's own structured statement of who did what, so it is
+    preferred over the prose credit line: it keeps every contributor, it does not
+    depend on how the sentence joins names with "and", and it carries the site's
+    canonical ``/contributors/<slug>`` identifier and any authority links.
+
+    Returns an empty list when the page carries no contributor microdata, so the
+    caller can fall back to the prose parser.
+    """
+    contributors: list[ContributorRef] = []
+    seen: set[tuple[str, str]] = set()
+    for node in article.css('div[property^="schema:"]'):
+        prop = (_attr(node, "property") or "").removeprefix("schema:").lower()
+        role = next((known for known in _CONTRIBUTOR_ROLES if prop.endswith(known)), None)
+        if role is None or node.css_first('meta[property="schema:name"]') is None:
             continue
-        name = node_text(link)
+        name = normalise_whitespace(
+            _attr(node.css_first('meta[property="schema:name"]'), "content") or ""
+        )
         if not name:
             continue
-        full = node_text(paragraph, separator=" ") or ""
-        role = normalise_whitespace(full.replace(name, "")) or ""
-        role = role.removesuffix(" by").strip().rstrip(".").strip()
-        contributors.append(
-            ContributorRef(role=role or "Contributor", name=name, url=_absolute("", href))
-        )
+        resource = _attr(node, "resource") or ""
+        url = _absolute(base_url, resource) if resource.startswith("/contributors/") else None
+        label = _CONTRIBUTOR_LABELS.get(role, "Contributed by")
+        key = (label, name)
+        if key in seen:
+            continue
+        seen.add(key)
+        contributors.append(ContributorRef(role=label, name=name, url=url))
     return contributors
 
 
@@ -408,11 +525,15 @@ def parse_ebook_page(html: str, *, source_url: str, base_url: str) -> EbookDetai
     repository_url = f"https://github.com/standardebooks/{repository_slug}"
     anchor_hrefs = {_attr(a, "href") for a in article.css("a")}
 
+    contributors = _parse_contributor_microdata(article, base_url)
+    if not contributors:
+        contributors = _parse_contributors(aside) if aside is not None else []
+
     return EbookDetail(
         id=ebook_id,
         title=node_text(title_node) or "",
         authors=authors,
-        contributors=_parse_contributors(aside) if aside is not None else [],
+        contributors=contributors,
         subjects=_parse_subjects(aside) if aside is not None else [],
         word_count=word_count,
         reading_ease=reading_ease,

@@ -76,10 +76,53 @@ class DisallowedPath(UpstreamBlocked):
     """
 
 
+def _remove_dot_segments(path: str) -> str:
+    """Collapse ``.`` and ``..`` the way RFC 3986 section 5.2.4 prescribes.
+
+    This has to match what actually goes on the wire. ``httpx`` normalises dot
+    segments while building the request, so ``/help/../honeypot`` leaves this
+    process as ``/honeypot``. A guard that only inspected the string it was
+    handed would therefore pass a URL whose *transmitted* path is the one we
+    refuse, which is the exact outcome the guard exists to prevent.
+    """
+    out: list[str] = []
+    for segment in path.split("/"):
+        if segment == ".":
+            continue
+        if segment == "..":
+            if out:
+                out.pop()
+            continue
+        out.append(segment)
+    joined = "/".join(out)
+    # A leading empty segment is the root slash and must survive; trailing empty
+    # segments come from repeated slashes and are dropped by the caller's rstrip.
+    return joined if joined.startswith("/") else f"/{joined}"
+
+
+def _normalised_path(url: str) -> str:
+    """Return the request path as it will actually be transmitted.
+
+    Percent-decoding, dot-segment removal, repeated-slash collapsing and
+    case folding all happen here, so a caller cannot spell a forbidden path in a
+    form the matcher fails to recognise. Decoding runs to a fixed point, because
+    one round is not enough for a doubly-encoded segment.
+    """
+    path = urlsplit(url).path
+    for _ in range(3):
+        decoded = unquote(path)
+        if decoded == path:
+            break
+        path = decoded
+    path = _remove_dot_segments(path)
+    while "//" in path:
+        path = path.replace("//", "/")
+    return path.lower().rstrip("/") or "/"
+
+
 def _is_disallowed(url: str) -> bool:
     """True when ``url`` targets a path this client is forbidden to request."""
-    raw_path = urlsplit(url).path
-    path = unquote(raw_path).lower().rstrip("/") or "/"
+    path = _normalised_path(url)
     if any(path == rule or path.startswith(f"{rule}/") for rule in _DISALLOWED_PATHS):
         return True
     parts = [segment for segment in path.split("/") if segment]
@@ -317,6 +360,14 @@ class UpstreamClient:
             except UpstreamBlocked:
                 self._breaker.on_abort()
                 raise
+            except UpstreamError:
+                # A redirect loop or a Location-less redirect aborts without
+                # counting as a failure, so it must release the half-open trial
+                # slot here. Skipping this leaves the breaker permanently half
+                # open, and every later caller is refused with "a trial request
+                # is already in flight" even though nothing is in flight.
+                self._breaker.on_abort()
+                raise
             except httpx.HTTPError as exc:
                 self._breaker.on_failure()
                 if attempt < attempts:
@@ -430,11 +481,28 @@ class UpstreamClient:
         return capped / 2 + self._random() * capped / 2
 
     def _retry_delay(self, response: httpx.Response, attempt: int) -> float:
-        """Back off for at least ``Retry-After`` when the site sent one."""
+        """Back off for at least ``Retry-After`` when the site sent one.
+
+        The site's own instruction outranks our exponential backoff, because
+        retrying sooner than a rate-limited site asked is the impolite choice.
+        It is deliberately *not* truncated to ``backoff_max_seconds``: that
+        setting governs how fast our own backoff grows, not what the site asked
+        for, and clamping to it would silently retry under a rate limit.
+
+        A ``Retry-After`` beyond ``max_retry_after_seconds`` means "come back
+        much later". Rather than pin a worker for that long, or retry early, we
+        give up and tell the caller when to return.
+        """
         requested = self._parse_retry_after(response.headers.get("Retry-After"))
         if requested is None:
             return self._backoff(attempt)
-        return max(self._backoff(attempt), min(requested, self._settings.backoff_max_seconds))
+        if requested > self._settings.max_retry_after_seconds:
+            raise UpstreamRateLimited(
+                f"the site asked to wait {requested:.0f}s, longer than the "
+                f"{self._settings.max_retry_after_seconds:.0f}s this client will hold a "
+                "request open; retry after that"
+            )
+        return max(self._backoff(attempt), requested)
 
     def _parse_retry_after(self, value: str | None) -> float | None:
         """Read ``Retry-After`` as seconds or as an HTTP date. ``None`` if absent."""
