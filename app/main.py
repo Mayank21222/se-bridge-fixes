@@ -18,7 +18,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app import __version__
-from app.config import configure_logging
+from app.config import configure_logging, get_settings
 from app.errors import ERROR_STATUS, ApiError, UpstreamChanged, UpstreamError
 from app.models import (
     EbookDetail,
@@ -95,6 +95,17 @@ def create_app() -> FastAPI:
             502: {"model": ErrorResponse, "description": "Upstream blocked or changed"},
         },
     )
+    _orig_openapi = application.openapi
+
+    def _openapi_override() -> dict:
+        schema = _orig_openapi()
+        for methods in schema.get("paths", {}).values():
+            for spec in methods.values():
+                if isinstance(spec, dict):
+                    spec.setdefault("responses", {}).pop("422", None)
+        return schema
+
+    object.__setattr__(application, "openapi", _openapi_override)
 
     # ---------------------------------------------------------------- errors
     @application.exception_handler(ApiError)
@@ -179,7 +190,7 @@ def create_app() -> FastAPI:
                     "(48 by default); anything larger is rejected with BAD_REQUEST."
                 )
             ),
-        ] = 12,
+        ] = get_settings().default_page_size,
         subject: Annotated[
             str | None,
             Query(
@@ -213,7 +224,10 @@ def create_app() -> FastAPI:
         service: Annotated[CatalogService, Depends(_service)],
         q: Annotated[str, Query(description="Free-text query. Must not be blank.")],
         page: Annotated[int, Query(description="1-based page number. Must be 1 or greater.")] = 1,
-        page_size: Annotated[int, Query(ge=1, description="Items per page.")] = 12,
+        page_size: Annotated[
+            int,
+            Query(ge=1, description="Items per page."),
+        ] = get_settings().default_page_size,
         subject: Annotated[str | None, Query(description="Subject slug filter.")] = None,
         sort: Annotated[
             str | None,
